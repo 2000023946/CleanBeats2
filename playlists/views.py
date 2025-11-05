@@ -2,6 +2,10 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from accounts.spotify import get_user_playlists, get_playlist_tracks, get_track_info
 import requests
+import requests
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
 
 
 @login_required
@@ -54,6 +58,7 @@ def get_playlist_tracks_with_previews(user, playlist_id):
                 "preview_url": track_info.get("preview_url"),
                 "spotify_url": track_info["external_urls"]["spotify"],
                 "artists": [artist["name"] for artist in track_info["artists"]],
+                "track_uri": track_info.get("uri"),
             }
         )
 

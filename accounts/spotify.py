@@ -75,3 +75,50 @@ def get_track_info(user, track_id):
     r = requests.get(url, headers=headers)
     r.raise_for_status()
     return r.json()
+
+
+# views.py
+import requests
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
+from django.contrib.auth.decorators import login_required
+
+
+@login_required
+@csrf_exempt
+def play_track(request):
+    if request.method != "POST":
+        return JsonResponse(
+            {"status": "error", "message": "Invalid method"}, status=405
+        )
+
+    data = json.loads(request.body)
+    track_uri = data.get("uri")
+
+    try:
+        st = SpotifyToken.objects.get(user=request.user)
+    except SpotifyToken.DoesNotExist:
+        return JsonResponse(
+            {"status": "error", "message": "No Spotify token for user"}, status=400
+        )
+
+    # Refresh token if expired
+    if st.is_expired():
+        st = refresh_spotify_token_for_user(request.user)
+
+    access_token = st.access_token
+
+    # Play the track
+    url = "https://api.spotify.com/v1/me/player/play"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    payload = {"uris": [track_uri]}
+
+    r = requests.put(url, headers=headers, json=payload)
+
+    if r.status_code in [204, 202]:
+        return JsonResponse({"status": "success"})
+    return JsonResponse({"status": "error", "message": r.text}, status=400)
