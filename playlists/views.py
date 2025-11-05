@@ -6,6 +6,10 @@ import requests
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 import json
+from .models import KeptSong
+from django.views.decorators.http import require_POST
+from django.contrib.auth import get_user_model
+from django.shortcuts import get_object_or_404
 
 
 @login_required
@@ -26,17 +30,149 @@ def playlist_dashboard(request):
 
 
 @login_required
-def render_edit(request):
+def render_edit(request, playlist_id=None):
+    """Render the edit UI for a specific playlist.
+
+    If playlist_id is provided we load that playlist; otherwise fall back to the user's
+    first playlist (legacy behaviour).
+    """
     data = get_user_playlists(request.user)
     playlists = data.get("items", [])
-    songs = get_playlist_tracks_with_previews(request.user, playlists[0]["id"])
-    # print(tracks)
-    print("data to render", {"songs": songs, "name": playlists[0]["name"]})
+
+    # find requested playlist by id if given
+    playlist = None
+    if playlist_id:
+        for p in playlists:
+            if str(p.get("id")) == str(playlist_id):
+                playlist = p
+                break
+
+    # default to first playlist
+    if not playlist:
+        if playlists:
+            playlist = playlists[0]
+        else:
+            return render(request, "playlists/edit.html", {"songs": [], "playlist_name": "", "playlist_id": ""})
+
+    songs = get_playlist_tracks_with_previews(request.user, playlist["id"])
+
+    # Exclude only tracks the user explicitly removed (kept==False).
+    # Kept songs should remain in the edit stack so users can re-edit them.
+    try:
+        removed_uris = set(
+            KeptSong.objects.filter(user=request.user, playlist_id=playlist["id"], kept=False)
+            .values_list("track_uri", flat=True)
+        )
+    except Exception:
+        removed_uris = set()
+
+    filtered_songs = [s for s in songs if s.get("track_uri") not in removed_uris]
+
+    # send playlist id and name to the template
     return render(
         request,
         "playlists/edit.html",
-        {"songs": songs, "name": playlists[0]["name"]},
+        {"songs": filtered_songs, "playlist_name": playlist.get("name", ""), "playlist_id": playlist["id"]},
     )
+
+
+@login_required
+@csrf_exempt
+@require_POST
+def save_decision(request):
+    """API endpoint to save a user's keep/remove decision for a track in a playlist.
+
+    Expects JSON body with: playlist_id, track_uri, name, artists (list), image_url, preview_url, spotify_url, kept (bool)
+    """
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    user = request.user
+    playlist_id = payload.get("playlist_id")
+    track_uri = payload.get("track_uri")
+    name = payload.get("name")
+    artists = payload.get("artists")
+    image_url = payload.get("image_url")
+    preview_url = payload.get("preview_url")
+    spotify_url = payload.get("spotify_url")
+    kept = payload.get("kept")
+
+    if not all([playlist_id, track_uri]) or kept is None:
+        return JsonResponse({"error": "missing_fields"}, status=400)
+
+    # Upsert the decision
+    obj, created = KeptSong.objects.update_or_create(
+        user=user, playlist_id=playlist_id, track_uri=track_uri,
+        defaults={
+            "name": name or "",
+            "artists": artists or [],
+            "image_url": image_url,
+            "preview_url": preview_url,
+            "spotify_url": spotify_url,
+            "kept": bool(kept),
+        },
+    )
+
+    return JsonResponse({"status": "saved", "created": created})
+
+
+@login_required
+def kept_view(request, playlist_id):
+    """Render a page showing kept and removed songs for given playlist id."""
+    # Query the KeptSong objects for this user+playlist
+    qs = KeptSong.objects.filter(user=request.user, playlist_id=playlist_id).order_by('-created_at')
+    kept = [
+        {
+            "name": s.name,
+            "artists": s.artists or [],
+            "image_url": s.image_url,
+            "preview_url": s.preview_url,
+            "spotify_url": s.spotify_url,
+            "track_uri": s.track_uri,
+        }
+        for s in qs.filter(kept=True)
+    ]
+
+    removed = [
+        {
+            "name": s.name,
+            "artists": s.artists or [],
+            "image_url": s.image_url,
+            "preview_url": s.preview_url,
+            "spotify_url": s.spotify_url,
+            "track_uri": s.track_uri,
+        }
+        for s in qs.filter(kept=False)
+    ]
+
+    return render(request, "playlists/kept.html", {"kept": kept, "removed": removed, "playlist_id": playlist_id})
+
+
+@login_required
+@require_POST
+def reconsider_decision(request):
+    """Reconsider a previously saved decision: remove the KeptSong entry so the track
+    returns to the unedited pool.
+
+    Expects JSON body with: playlist_id, track_uri
+    """
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    playlist_id = payload.get("playlist_id")
+    track_uri = payload.get("track_uri")
+
+    if not playlist_id or not track_uri:
+        return JsonResponse({"error": "missing_fields"}, status=400)
+
+    # Delete any existing decision for this user/playlist/track
+    deleted, _ = KeptSong.objects.filter(user=request.user, playlist_id=playlist_id, track_uri=track_uri).delete()
+
+    return JsonResponse({"status": "deleted", "deleted": deleted})
 
 
 def get_playlist_tracks_with_previews(user, playlist_id):

@@ -6,8 +6,14 @@
     {% if songs %}
         <div class="song-stack position-relative mx-auto" style="height: 500px; max-width: 400px;">
             {% for song in songs %}
-            <div class="card song-card shadow-lg position-absolute top-0 start-50 translate-middle-x" 
-                 style="width: 100%; height: 100%; transition: all 0.3s ease; {% if not forloop.last %}z-index: {{ forloop.revcounter }};{% endif %}">
+          <div class="card song-card shadow-lg position-absolute top-0 start-50 translate-middle-x"
+              data-track-uri="{{ song.track_uri }}"
+              data-name="{{ song.name|escapejs }}"
+              data-image="{{ song.image_url }}"
+              data-preview="{{ song.preview_url }}"
+              data-spotify="{{ song.spotify_url }}"
+              data-artists="{{ song.artists|join:", "|escapejs }}"
+              style="width: 100%; height: 100%; transition: all 0.3s ease; {% if not forloop.last %}z-index: {{ forloop.revcounter }};{% endif %}">
                 
                 <!-- Song image -->
                 <img src="{{ song.image_url|default:'/static/img/placeholder.png' }}" 
@@ -31,9 +37,11 @@
                         </audio>
                     {% endif %}
 
-                    <a href="{{ song.spotify_url }}" target="_blank" class="btn btn-outline-success mt-2">
-                        ▶ Listen on Spotify
-                    </a>
+                    <div class="d-flex align-items-center mt-2">
+                        <a href="{{ song.spotify_url }}" class="btn btn-outline-success">
+                            ▶ Listen on Spotify
+                        </a>
+                    </div>
 
                     <button class="btn btn-primary mt-2 play-btn" data-uri="{{ song.track_uri }}">
                         ▶ Play
@@ -44,10 +52,14 @@
             {% endfor %}
         </div>
 
+        <div class="text-center mb-3">
+            <a href="{% url 'playlists.kept' playlist_id=playlist_id %}" class="btn btn-outline-secondary">View Kept</a>
+        </div>
+
         <!-- Action Buttons -->
-        <div class="d-flex justify-content-between mt-4" style="max-width: 400px; margin: auto;" id="action-buttons">
-            <button class="btn btn-danger btn-lg remove-btn" style="width: 48%; font-size: 1.5rem;">✖</button>
-            <button class="btn btn-success btn-lg keep-btn" style="width: 48%; font-size: 1.5rem;">✔</button>
+        <div id="action-buttons" class="d-flex justify-content-between mt-4">
+            <button class="btn remove-btn" style="width: 48%; font-size: 1.5rem;">✖</button>
+            <button class="btn keep-btn" style="width: 48%; font-size: 1.5rem;">✔</button>
         </div>
     {% else %}
         <p class="text-muted">No songs found in this playlist.</p>
@@ -80,16 +92,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const keepBtn = document.querySelector('.keep-btn');
     const removeBtn = document.querySelector('.remove-btn');
+    async function saveDecisionAndRemove(card, kept) {
+        // extract data from card
+        const payload = {
+            playlist_id: '{{ playlist_id }}',
+            track_uri: card.dataset.trackUri || card.getAttribute('data-track-uri'),
+            name: card.dataset.name || card.getAttribute('data-name'),
+            artists: (card.dataset.artists || card.getAttribute('data-artists') || '').split(',').map(s => s.trim()).filter(Boolean),
+            image_url: card.dataset.image || card.getAttribute('data-image'),
+            preview_url: card.dataset.preview || card.getAttribute('data-preview'),
+            spotify_url: card.dataset.spotify || card.getAttribute('data-spotify'),
+            kept: kept
+        };
+
+        try {
+            await fetch("{% url 'playlists.save_decision' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify(payload)
+            });
+        } catch (err) {
+            console.error('Failed to save decision', err);
+        }
+
+        // remove the specific card that was acted upon
+        if (card) removeCard(card, kept ? 'right' : 'left');
+    }
 
     keepBtn.addEventListener('click', () => {
         const cards = getCards();
-        if (cards.length) removeCard(cards[0], 'right');
+        if (cards.length) saveDecisionAndRemove(cards[0], true);
     });
 
     removeBtn.addEventListener('click', () => {
         const cards = getCards();
-        if (cards.length) removeCard(cards[0], 'left');
+        if (cards.length) saveDecisionAndRemove(cards[0], false);
     });
+
+    // removed per-card 'Kept' buttons (keeps are handled from the Kept page)
 });
 </script>
 
@@ -131,6 +174,32 @@ document.addEventListener('DOMContentLoaded', () => {
 }
 .song-card img {
     border-bottom: 1px solid #ddd;
+}
+/* Action buttons section styling */
+#action-buttons {
+    background: #000;
+    padding: 10px;
+    border-radius: 10px;
+    max-width: 400px;
+    margin: auto;
+}
+
+#action-buttons .keep-btn {
+    background-color: #16a34a; /* green */
+    color: #fff;
+    border: none;
+}
+
+#action-buttons .remove-btn {
+    background-color: #dc2626; /* red */
+    color: #fff;
+    border: none;
+}
+
+.quick-kept-btn {
+    background-color: #16a34a;
+    color: #fff;
+    border: none;
 }
 </style>
 {% endblock %}

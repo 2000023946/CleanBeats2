@@ -24,7 +24,10 @@
                         <a href="{{ p.external_urls.spotify }}" target="_blank" class="btn btn-outline-success w-50">
                             Open in Spotify
                         </a>
-                        <a href="{% url 'playlists.edit' %}" target="_blank" class="btn btn-outline-success w-100">
+                        <a href="{% url 'playlists.kept' playlist_id=p.id %}" class="btn btn-outline-secondary w-50 ms-1">
+                            Kept
+                        </a>
+                        <a href="{% url 'playlists.edit_by_id' playlist_id=p.id %}" class="btn btn-outline-success w-100 mt-2">
                             Edit PlayList
                         </a>
                     </div>
