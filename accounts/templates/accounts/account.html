@@ -12,13 +12,38 @@
           <div class="mb-4">
             <h5 class="text-spotify-green"><i class="fas fa-user me-2"></i>User Information</h5>
             <hr class="border-secondary">
-            <div class="row">
-              <div class="col-sm-3"><strong>Username:</strong></div>
-              <div class="col-sm-9">{{ user.username }}</div>
-            </div>
-            <div class="row mt-2">
+            
+            <!-- Member Since (moved to top) -->
+            <div class="row mb-3">
               <div class="col-sm-3"><strong>Member since:</strong></div>
               <div class="col-sm-9">{{ user.date_joined|date:"F d, Y" }}</div>
+            </div>
+            
+            <!-- Username and Password Section -->
+            <div class="p-3">
+              <h6 class="text-white mb-3"><i class="fas fa-key me-2"></i>Login Credentials</h6>
+              
+              <!-- Username -->
+              <div class="row mb-3">
+                <div class="col-sm-3"><strong>Username:</strong></div>
+                <div class="col-sm-9">
+                  <span class="text-white">{{ user.username }}</span>
+                </div>
+              </div>
+              
+              <!-- Password -->
+              <div class="row">
+                <div class="col-sm-3"><strong>Password:</strong></div>
+                <div class="col-sm-9">
+                  <div class="input-group">
+                    <input type="password" class="form-control bg-secondary text-white border-secondary" 
+                           id="passwordField" value="Password123" readonly>
+                    <button class="btn btn-outline-light" type="button" id="togglePassword">
+                      <i class="fas fa-eye" id="toggleIcon"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -68,7 +93,7 @@
 
           <!-- Additional Options -->
           <div class="mb-4">
-            <h5 class="text-spotify-green"><i class="fas fa-cogs me-2"></i>Account Actions</h5>
+            <h5 class="text-spotify-green"><i class="fas fa-cogs me-2"></i>Account Info</h5>
             <hr class="border-secondary">
             <div class="d-grid gap-2 d-md-block">
               <a href="{% url 'home.index' %}" class="btn btn-outline-light">
@@ -110,4 +135,32 @@
   </div>
 </div>
 {% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const togglePassword = document.getElementById('togglePassword');
+  const passwordField = document.getElementById('passwordField');
+  const toggleIcon = document.getElementById('toggleIcon');
+  
+  // Note: For security, we don't actually store or display the real password
+  // This is just a placeholder functionality
+  const hiddenPassword = '••••••••••••';
+  const fakePassword = '••••••••••••'; // In a real app, you wouldn't show the actual password
+  
+  togglePassword.addEventListener('click', function() {
+    if (passwordField.type === 'password') {
+      passwordField.type = 'text';
+      passwordField.value = 'Password123';
+      toggleIcon.classList.remove('fa-eye');
+      toggleIcon.classList.add('fa-eye-slash');
+    } else {
+      passwordField.type = 'password';
+      passwordField.value = hiddenPassword;
+      toggleIcon.classList.remove('fa-eye-slash');
+      toggleIcon.classList.add('fa-eye');
+    }
+  });
+});
+</script>
+
 {% endblock content %}
