@@ -24,3 +24,7 @@ urlpatterns = [
     path('playlists/', include('playlists.urls')),
     
 ]
+
+######
+# Admin username: admin
+# Admin password: superuserpass
