@@ -14,7 +14,22 @@
       </div>
     </div>
     
-    <!-- Login and Create Account Cards -->
+    {% if user.is_authenticated %}
+    <!-- Connect to Spotify Card (for authenticated users) -->
+    <div class="row mt-4 justify-content-center">
+      <div class="col-md-6 mb-3">
+        <div class="card bg-dark text-white h-100 shadow">
+          <div class="card-body text-center d-flex flex-column">
+            <i class="fab fa-spotify fa-3x mb-3" style="color: var(--spotify-green);"></i>
+            <h5 class="card-title">Connect to Spotify</h5>
+            <p class="card-text flex-grow-1">Connect your Spotify account to start managing and cleaning your playlists with CleanBeats.</p>
+            <a href="{% url 'accounts.spotify_connect' %}" class="btn btn-spotify mt-auto">Connect to Spotify</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <!-- Login and Create Account Cards (for non-authenticated users) -->
     <div class="row mt-4 justify-content-center">
       <div class="col-md-4 mb-3">
         <div class="card bg-dark text-white h-100 shadow">
@@ -38,6 +53,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
   </div>
 </div>
 {% endblock content %}

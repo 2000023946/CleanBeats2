@@ -30,15 +30,7 @@
                 <li class="nav-item">
                   <a class="nav-link" href="{% url 'playlists.dashboard' %}">My Playlists</a>
                 </li>
-              {% else %}
-                <!-- Logged in, not connected yet -->
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'accounts.spotify_connect' %}">Connect Spotify</a>
-                </li>
               {% endif %}
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'accounts.logout' %}">Logout</a>
-              </li>
             {% else %}
               <li class="nav-item">
                 <a class="nav-link" href="{% url 'accounts.login' %}">Login</a>
@@ -50,9 +42,17 @@
           </ul>
 
           {% if user.is_authenticated %}
-          <span class="navbar-text">
-            Hello, {{ user.username }}!
-          </span>
+          <!-- Profile Dropdown -->
+          <div class="dropdown">
+            <button class="btn btn-outline-light dropdown-toggle" type="button" id="profileDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fas fa-user me-1"></i>{{ user.username }}
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark" aria-labelledby="profileDropdown">
+              <li><a class="dropdown-item" href="#"><i class="fas fa-user-cog me-2"></i>Account</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'accounts.logout' %}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+            </ul>
+          </div>
           {% endif %}
         </div>
       </div>
