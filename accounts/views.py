@@ -11,6 +11,8 @@ import requests
 from .models import SpotifyToken
 from .spotify import get_spotify_user_profile
 from urllib.parse import urlencode
+import secrets
+import string
 
 
 @login_required
@@ -58,12 +60,24 @@ def signup(request):
 def connect_spotify(request):
     """Redirect the logged-in user to Spotify's authorization page."""
     scopes = "playlist-read-private playlist-read-collaborative"
+
+    # CSRF protection via state parameter
+    state = secrets.token_urlsafe(16)
+    request.session['spotify_auth_state'] = state
+
+    # Build absolute redirect URI from current request and named route
+    # This must EXACTLY match one of the Redirect URIs configured in the Spotify Dev Dashboard
+    redirect_uri = request.build_absolute_uri(
+        reverse('accounts.spotify_callback')
+    )
+
     params = {
         'client_id': settings.SPOTIFY_CLIENT_ID,
         'response_type': 'code',
-        'redirect_uri': settings.SPOTIFY_REDIRECT_URI,
+        'redirect_uri': redirect_uri,
         'scope': scopes,
-        'show_dialog': 'true',
+        'state': state,
+        'show_dialog': 'true',  # force re-consent on dev for easier testing
     }
     auth_url = 'https://accounts.spotify.com/authorize?' + urlencode(params)
     return redirect(auth_url)
@@ -73,22 +87,34 @@ def spotify_callback(request):
     """Handle Spotify redirect with a code and exchange it for tokens."""
     error = request.GET.get('error')
     code = request.GET.get('code')
+    returned_state = request.GET.get('state')
+    expected_state = request.session.pop('spotify_auth_state', None)
+
     if error:
         # Could render an error template; for now redirect home
         return redirect('home.index')
     if not code:
         return redirect('home.index')
+    if not expected_state or returned_state != expected_state:
+        # Potential CSRF or stale callback; do not attempt token exchange
+        return redirect('home.index')
 
     token_url = 'https://accounts.spotify.com/api/token'
+    # Must be identical to the redirect_uri used in the authorize request
+    redirect_uri = request.build_absolute_uri(
+        reverse('accounts.spotify_callback')
+    )
     data = {
         'grant_type': 'authorization_code',
         'code': code,
-        'redirect_uri': settings.SPOTIFY_REDIRECT_URI,
+        'redirect_uri': redirect_uri,
         'client_id': settings.SPOTIFY_CLIENT_ID,
         'client_secret': settings.SPOTIFY_CLIENT_SECRET,
     }
-    r = requests.post(token_url, data=data)
-    if r.status_code != 200:
+    try:
+        r = requests.post(token_url, data=data, timeout=10)
+        r.raise_for_status()
+    except requests.RequestException:
         return redirect('home.index')
     token_data = r.json()
     access_token = token_data.get('access_token')
