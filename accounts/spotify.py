@@ -90,7 +90,6 @@ def get_track_info(user, track_id):
 
 
 # views.py
-import requests
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 import json
