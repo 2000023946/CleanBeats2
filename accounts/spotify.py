@@ -89,6 +89,22 @@ def get_track_info(user, track_id):
     return r.json()
 
 
+def get_playlist(user, playlist_id):
+    """Fetch a single playlist object by id for the current user.
+
+    Useful when we already know the id and don't want to rely on the first-page
+    results of /me/playlists.
+    """
+    st = SpotifyToken.objects.get(user=user)
+    if st.is_expired():
+        st = refresh_spotify_token_for_user(user)
+    headers = {"Authorization": f"Bearer {st.access_token}"}
+    url = f"{API_BASE}/playlists/{playlist_id}"
+    r = requests.get(url, headers=headers)
+    r.raise_for_status()
+    return r.json()
+
+
 # views.py
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse

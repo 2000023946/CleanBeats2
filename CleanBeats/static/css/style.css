@@ -38,6 +38,16 @@ body.bg-dark {
   font-weight: bold;
 }
 
+/* Improve readability of muted/secondary text on dark backgrounds */
+body.bg-dark .text-muted {
+  color: #c9c9c9 !important; /* higher contrast vs #121212 */
+}
+
+/* Ensure dark list groups also have readable muted text */
+.list-group-dark .text-muted {
+  color: #c9c9c9 !important;
+}
+
 /* Dark theme form styling with Spotify green accents */
 .bg-dark label {
   color: #ffffff !important;
@@ -73,6 +83,32 @@ body.bg-dark {
   transform: translateY(-1px);
 }
 
+/* Outline variant for Spotify button */
+.btn-outline-spotify {
+  color: var(--spotify-green) !important;
+  border-color: var(--spotify-green) !important;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-outline-spotify:hover {
+  color: #ffffff !important;
+  background-color: var(--spotify-green) !important;
+  border-color: var(--spotify-green) !important;
+}
+
+/* Nicer pill buttons and compact small variant */
+.btn-pill { border-radius: 9999px !important; }
+.btn-spotify.btn-sm, .btn-outline-spotify.btn-sm {
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+}
+
+/* Subtle focus ring for themed buttons */
+.btn-spotify:focus, .btn-outline-spotify:focus {
+  box-shadow: 0 0 0 0.2rem rgba(29, 185, 84, 0.25) !important;
+}
+
 /* Update existing dark buttons to use Spotify green */
 .btn.bg-dark {
   background-color: var(--spotify-green) !important;
@@ -102,4 +138,88 @@ body.bg-dark {
 .card .card-footer {
   border-bottom-left-radius: 0 !important;
   border-bottom-right-radius: 0 !important;
+}
+
+/* Playlist cards on dark theme */
+.card.playlist-card {
+  background-color: #181818 !important; /* Spotify dark */
+  color: #ffffff;
+  border: 1px solid #282828;
+}
+
+.card.playlist-card .card-footer {
+  background-color: #181818 !important;
+  border-top: 1px solid #282828;
+}
+
+.card.playlist-card .card-title {
+  color: #ffffff;
+}
+
+.card.playlist-card .card-text {
+  color: #d0d0d0; /* brighter for better contrast */
+}
+
+.card.playlist-card:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+/* Edit page: stacked song cards */
+.song-stack {
+  height: 520px;
+  max-width: 420px;
+}
+
+.card.song-card {
+  width: 100%;
+  height: 100%;
+  background-color: #181818 !important;
+  border: 1px solid #282828;
+  color: #fff;
+  transition: all 0.3s ease;
+}
+
+.card.song-card img.card-img-top {
+  height: 68%;
+  object-fit: cover;
+  border-bottom: 1px solid #282828;
+}
+
+.card.song-card .card-text { color: #d0d0d0; }
+
+/* Edit page action bar */
+#action-buttons {
+  background: #181818;
+  border: 1px solid #282828;
+  border-radius: 10px;
+  padding: 12px;
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#action-buttons .btn {
+  font-size: 1.25rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+/* Badge for missing previews */
+.no-preview-badge {
+  background-color: #232323;
+  color: #b3b3b3;
+  border: 1px solid #333;
+  border-radius: 9999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+/* Dark list group styling for Kept/Removed screen */
+.list-group-dark .list-group-item {
+  background-color: #181818;
+  color: #ffffff;
+  border-color: #282828;
+}
+.list-group-dark .list-group-item:hover {
+  background-color: #1f1f1f;
 }

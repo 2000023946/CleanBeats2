@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from accounts.spotify import get_user_playlists, get_playlist_tracks, get_track_info
+from accounts.spotify import get_user_playlists, get_playlist_tracks, get_track_info, get_playlist
 import requests
 import requests
 from django.views.decorators.csrf import csrf_exempt
@@ -10,6 +10,29 @@ from .models import KeptSong
 from django.views.decorators.http import require_POST
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from typing import Any, List
+
+
+def _decode_unicode_escapes(value: Any) -> Any:
+    """Decode strings that contain unicode escape sequences like \u002D.
+
+    Uses json.loads on a quoted string to safely decode common escape sequences
+    without over-decoding regular text. Non-strings are returned unchanged.
+    """
+    if isinstance(value, str) and "\\" in value:
+        try:
+            # Quote and escape for JSON string literal
+            s = value.replace("\\", "\\\\").replace('"', '\\"')
+            return json.loads(f'"{s}"')
+        except Exception:
+            return value
+    return value
+
+
+def _decode_list(lst: Any) -> Any:
+    if isinstance(lst, list):
+        return [_decode_unicode_escapes(x) for x in lst]
+    return lst
 
 
 @login_required
@@ -39,13 +62,17 @@ def render_edit(request, playlist_id=None):
     data = get_user_playlists(request.user)
     playlists = data.get("items", [])
 
-    # find requested playlist by id if given
+    # find requested playlist by id if given (fetch directly to avoid first-page issues)
     playlist = None
     if playlist_id:
-        for p in playlists:
-            if str(p.get("id")) == str(playlist_id):
-                playlist = p
-                break
+        try:
+            playlist = get_playlist(request.user, playlist_id)
+        except requests.RequestException:
+            # Fallback to scanning the first page, in case of transient error
+            for p in playlists:
+                if str(p.get("id")) == str(playlist_id):
+                    playlist = p
+                    break
 
     # default to first playlist
     if not playlist:
@@ -102,12 +129,16 @@ def save_decision(request):
     if not all([playlist_id, track_uri]) or kept is None:
         return JsonResponse({"error": "missing_fields"}, status=400)
 
+    # Normalize any escaped unicode sequences that may have come from data-* attributes
+    name = _decode_unicode_escapes(name or "")
+    artists = _decode_list(artists or [])
+
     # Upsert the decision
     obj, created = KeptSong.objects.update_or_create(
         user=user, playlist_id=playlist_id, track_uri=track_uri,
         defaults={
-            "name": name or "",
-            "artists": artists or [],
+            "name": name,
+            "artists": artists,
             "image_url": image_url,
             "preview_url": preview_url,
             "spotify_url": spotify_url,
@@ -125,8 +156,8 @@ def kept_view(request, playlist_id):
     qs = KeptSong.objects.filter(user=request.user, playlist_id=playlist_id).order_by('-created_at')
     kept = [
         {
-            "name": s.name,
-            "artists": s.artists or [],
+            "name": _decode_unicode_escapes(s.name),
+            "artists": _decode_list(s.artists or []),
             "image_url": s.image_url,
             "preview_url": s.preview_url,
             "spotify_url": s.spotify_url,
@@ -137,8 +168,8 @@ def kept_view(request, playlist_id):
 
     removed = [
         {
-            "name": s.name,
-            "artists": s.artists or [],
+            "name": _decode_unicode_escapes(s.name),
+            "artists": _decode_list(s.artists or []),
             "image_url": s.image_url,
             "preview_url": s.preview_url,
             "spotify_url": s.spotify_url,
@@ -169,10 +200,15 @@ def reconsider_decision(request):
     if not playlist_id or not track_uri:
         return JsonResponse({"error": "missing_fields"}, status=400)
 
-    # Delete any existing decision for this user/playlist/track
-    deleted, _ = KeptSong.objects.filter(user=request.user, playlist_id=playlist_id, track_uri=track_uri).delete()
+    # Flip an existing removed decision back to kept=True
+    obj = KeptSong.objects.filter(user=request.user, playlist_id=playlist_id, track_uri=track_uri).first()
+    if not obj:
+        return JsonResponse({"error": "not_found"}, status=404)
 
-    return JsonResponse({"status": "deleted", "deleted": deleted})
+    obj.kept = True
+    obj.save(update_fields=["kept"])
+
+    return JsonResponse({"status": "updated", "kept": True})
 
 
 def get_playlist_tracks_with_previews(user, playlist_id):

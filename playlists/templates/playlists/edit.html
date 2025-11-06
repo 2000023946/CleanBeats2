@@ -1,25 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container my-5 text-center">
+<div class="container my-5 text-center position-relative">
+    <a href="{% url 'playlists.kept' playlist_id=playlist_id %}" class="btn btn-outline-spotify btn-sm position-absolute top-0 end-0 mt-2 me-2">View Kept</a>
     <h2 class="mb-4">{{ playlist_name }}</h2>
 
     {% if songs %}
-        <div class="song-stack position-relative mx-auto" style="height: 500px; max-width: 400px;">
+                <div class="song-stack position-relative mx-auto">
             {% for song in songs %}
-          <div class="card song-card shadow-lg position-absolute top-0 start-50 translate-middle-x"
+                      <div class="card song-card position-absolute top-0 start-50 translate-middle-x"
               data-track-uri="{{ song.track_uri }}"
-              data-name="{{ song.name|escapejs }}"
+              data-name="{{ song.name }}"
               data-image="{{ song.image_url }}"
               data-preview="{{ song.preview_url }}"
               data-spotify="{{ song.spotify_url }}"
-              data-artists="{{ song.artists|join:", "|escapejs }}"
-              style="width: 100%; height: 100%; transition: all 0.3s ease; {% if not forloop.last %}z-index: {{ forloop.revcounter }};{% endif %}">
+              data-artists="{{ song.artists|join:", " }}"
+                          {% if not forloop.last %}style="z-index: {{ forloop.revcounter }};"{% endif %}>
                 
                 <!-- Song image -->
-                <img src="{{ song.image_url|default:'/static/img/placeholder.png' }}" 
-                     class="card-img-top" 
-                     alt="Song cover" 
-                     style="height: 70%; object-fit: cover;">
+             <img src="{{ song.image_url|default:'/static/img/placeholder.png' }}" 
+                 class="card-img-top" 
+                 alt="Song cover">
                 
                 <div class="card-body d-flex flex-column justify-content-center align-items-center">
                     <h4 class="card-title">{{ song.name }}</h4>
@@ -31,35 +31,36 @@
                     {% endif %}
 
                     {% if song.preview_url %}
-                        <audio controls style="width: 90%;">
+                        <audio controls style="width: 100%;">
                             <source src="{{ song.preview_url }}" type="audio/mpeg">
                             Your browser does not support the audio element.
                         </audio>
                     {% endif %}
 
-                    <div class="d-flex align-items-center mt-2">
-                        <a href="{{ song.spotify_url }}" class="btn btn-outline-success">
-                            ▶ Listen on Spotify
+                    <div class="d-flex gap-2 mt-3 w-100 justify-content-center align-items-center">
+                        <a href="{{ song.spotify_url }}" target="_blank" rel="noopener" class="btn btn-outline-spotify btn-sm btn-pill flex-fill">
+                            <i class="fa-brands fa-spotify me-1"></i>Listen on Spotify
                         </a>
+                        {% if song.preview_url %}
+                        <button class="btn btn-spotify btn-sm btn-pill flex-fill play-btn" data-uri="{{ song.track_uri }}">
+                            <i class="fa-solid fa-play me-1"></i>Play
+                        </button>
+                        {% else %}
+                        <span class="no-preview-badge">No preview</span>
+                        {% endif %}
                     </div>
-
-                    <button class="btn btn-primary mt-2 play-btn" data-uri="{{ song.track_uri }}">
-                        ▶ Play
-                    </button>
                 </div>
 
             </div>
             {% endfor %}
         </div>
 
-        <div class="text-center mb-3">
-            <a href="{% url 'playlists.kept' playlist_id=playlist_id %}" class="btn btn-outline-secondary">View Kept</a>
-        </div>
+        
 
         <!-- Action Buttons -->
-        <div id="action-buttons" class="d-flex justify-content-between mt-4">
-            <button class="btn remove-btn" style="width: 48%; font-size: 1.5rem;">✖</button>
-            <button class="btn keep-btn" style="width: 48%; font-size: 1.5rem;">✔</button>
+        <div id="action-buttons" class="d-flex mt-4 gap-3">
+            <button class="btn btn-danger remove-btn flex-fill">✖ Remove</button>
+            <button class="btn btn-spotify keep-btn flex-fill">✔ Keep</button>
         </div>
     {% else %}
         <p class="text-muted">No songs found in this playlist.</p>
@@ -137,31 +138,51 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <script>
+// Use HTML5 audio preview instead of Spotify device playback
 document.addEventListener('DOMContentLoaded', () => {
     const playButtons = document.querySelectorAll('.play-btn');
+    const allAudios = () => Array.from(document.querySelectorAll('.song-card audio'));
+
+    function pauseAllExcept(target) {
+        allAudios().forEach(a => {
+            if (a !== target) {
+                try { a.pause(); } catch {}
+            }
+        });
+        // Reset other play buttons' labels
+        document.querySelectorAll('.play-btn').forEach(b => {
+            if (b !== currentBtn) b.textContent = '▶ Play';
+        });
+    }
+
+    let currentBtn = null;
 
     playButtons.forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const trackUri = btn.dataset.uri;
+        btn.addEventListener('click', () => {
+            const card = btn.closest('.song-card');
+            if (!card) return;
+            const audio = card.querySelector('audio');
+            if (!audio) return; // no preview available
 
-            // Use Django's url template tag to generate the endpoint dynamically
-            const url = "{% url 'spotify_play_track' %}";
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'  // CSRF protection
-                },
-                body: JSON.stringify({ uri: trackUri })
-            });
-
-            if (response.ok) {
-                alert('Playback started!');
+            currentBtn = btn;
+            if (audio.paused) {
+                pauseAllExcept(audio);
+                audio.play().then(() => {
+                    btn.textContent = '⏸ Pause';
+                }).catch(() => {
+                    btn.textContent = '▶ Play';
+                });
             } else {
-                const data = await response.json();
-                alert('Failed to start playback: ' + data.message);
+                audio.pause();
+                btn.textContent = '▶ Play';
             }
+        });
+    });
+
+    // Reset button text when a preview ends
+    allAudios().forEach(a => {
+        a.addEventListener('ended', () => {
+            document.querySelectorAll('.play-btn').forEach(b => { b.textContent = '▶ Play'; });
         });
     });
 });
@@ -169,37 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 <style>
-.song-card {
-    cursor: grab;
-}
-.song-card img {
-    border-bottom: 1px solid #ddd;
-}
-/* Action buttons section styling */
-#action-buttons {
-    background: #000;
-    padding: 10px;
-    border-radius: 10px;
-    max-width: 400px;
-    margin: auto;
-}
-
-#action-buttons .keep-btn {
-    background-color: #16a34a; /* green */
-    color: #fff;
-    border: none;
-}
-
-#action-buttons .remove-btn {
-    background-color: #dc2626; /* red */
-    color: #fff;
-    border: none;
-}
-
-.quick-kept-btn {
-    background-color: #16a34a;
-    color: #fff;
-    border: none;
-}
+.song-card { cursor: grab; }
+.quick-kept-btn { background-color: var(--spotify-green); color: #fff; border: none; }
 </style>
 {% endblock %}
