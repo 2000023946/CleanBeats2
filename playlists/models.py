@@ -22,6 +22,7 @@ class KeptSong(models.Model):
 
 	class Meta:
 		unique_together = ("user", "playlist_id", "track_uri")
+		verbose_name_plural = "Songs"
 
 	def __str__(self):
 		return f"{self.user} - {self.playlist_id} - {self.name} ({'kept' if self.kept else 'removed'})"
