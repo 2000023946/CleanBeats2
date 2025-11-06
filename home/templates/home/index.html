@@ -110,10 +110,10 @@
               <div class="privacy-list">
                 <div class="privacy-item mb-4">
                   <div class="d-flex align-items-start">
-                    <i class="fas fa-lock text-spotify-green me-3 mt-1"></i>
+                    <i class="fas fa-ban text-spotify-green me-3 mt-1"></i>
                     <div>
-                      <h5 class="text-white mb-2">Secure Authentication</h5>
-                      <p class="text-light-gray mb-0">We use Spotify's official OAuth system. We never see your password, and you can revoke access anytime from your Spotify settings.</p>
+                      <h5 class="text-white mb-2">We Never Sell Your Data</h5>
+                      <p class="text-light-gray mb-0">Your music data is yours alone. We never sell, share, or monetize your personal information or listening habits with third parties or advertisers.</p>
                     </div>
                   </div>
                 </div>
@@ -127,31 +127,11 @@
                     </div>
                   </div>
                 </div>
-                
-                <div class="privacy-item mb-4">
-                  <div class="d-flex align-items-start">
-                    <i class="fas fa-undo text-spotify-green me-3 mt-1"></i>
-                    <div>
-                      <h5 class="text-white mb-2">Non-Destructive Process</h5>
-                      <p class="text-light-gray mb-0">Your original playlists remain untouched. We create new cleaned versions, so you never lose your original music collection.</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="privacy-item mb-4">
-                  <div class="d-flex align-items-start">
-                    <i class="fas fa-trash-alt text-spotify-green me-3 mt-1"></i>
-                    <div>
-                      <h5 class="text-white mb-2">Data Deletion</h5>
-                      <p class="text-light-gray mb-0">Want to leave? You can delete all your data from our servers at any time through your account settings. No questions asked.</p>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           {% else %}
             <!-- Marketing content for non-authenticated users -->
-            <h3 class="text-spotify-green mb-3">Join Millions of Users Worldwide</h3>
+            <h3 class="text-spotify-green mb-3">Join <span id="user-counter" class="fw-bold">0</span> Users Worldwide</h3>
             <p class="text-light-gray mb-4 fs-5">Transform your music experience with the revolutionary playlist cleaning platform trusted by music lovers everywhere.</p>
             
             <h3 class="text-spotify-green mb-4">Why Choose CleanBeats?</h3>
@@ -201,9 +181,9 @@
                 <i class="fab fa-spotify fa-4x mb-4" style="color: var(--spotify-green);"></i>
                 {% if user.is_authenticated %}
                   <h4 class="card-title mb-3">Ready to Get Started?</h4>
-                  <p class="card-text flex-grow-1 mb-4">Connect your Spotify account to start cleaning and organizing your playlists with CleanBeats.</p>
+                  <p class="card-text flex-grow-1 mb-4">Connect your Spotify account to start swiping.</p>
                   <a href="{% url 'accounts.spotify_connect' %}" class="btn btn-spotify btn-lg">
-                    <i class="fab fa-spotify me-2"></i>Connect to Spotify
+                    <i class="fab fa-spotify me-2"></i>Connecthome/templates/home/index.html
                   </a>
                 {% else %}
                   <h4 class="card-title mb-3">Get Started Today</h4>
@@ -271,7 +251,7 @@
   border-radius: 15px;
 }
 
-/* Gradient background effect */
+/* Gradient background effect with magnetic cursor interaction */
 body.bg-dark {
   background: linear-gradient(180deg, 
     #121212 0%, 
@@ -281,6 +261,24 @@ body.bg-dark {
     #1c1c1c 85%, 
     #202020 100%);
   transition: background 2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow-x: hidden;
+}
+
+body.bg-dark::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(500px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), 
+    rgba(29, 185, 84, 0.06) 0%, 
+    rgba(29, 185, 84, 0.03) 40%, 
+    transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+  transition: opacity 0.2s ease;
 }
 
 body.scrolled {
@@ -296,6 +294,14 @@ body.scrolled {
     #2d2d2d 80%, 
     #323232 90%, 
     #383838 100%);
+}
+
+body.scrolled::before {
+  background: radial-gradient(700px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), 
+    rgba(29, 185, 84, 0.08) 0%, 
+    rgba(29, 185, 84, 0.04) 30%, 
+    rgba(29, 185, 84, 0.02) 60%, 
+    transparent 80%);
 }
 
 /* Card transparency on scroll */
@@ -334,6 +340,65 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     scrollTimeout = setTimeout(handleScroll, 10);
   });
+
+  // Magnetic cursor effect
+  document.addEventListener('mousemove', function(e) {
+    const x = (e.clientX / window.innerWidth) * 100;
+    const y = (e.clientY / window.innerHeight) * 100;
+    
+    document.documentElement.style.setProperty('--mouse-x', x + '%');
+    document.documentElement.style.setProperty('--mouse-y', y + '%');
+  });
+
+  // Set initial position
+  document.documentElement.style.setProperty('--mouse-x', '50%');
+  document.documentElement.style.setProperty('--mouse-y', '50%');
+
+  // User count configuration - change this number to update both HTML and animation
+  const USER_COUNT = 6153738;
+
+  // Simple animated counter for user count
+  const userCounter = document.getElementById('user-counter');
+  if (userCounter) {
+    // Set initial display value
+    userCounter.textContent = USER_COUNT.toLocaleString();
+    
+    const targetNumber = USER_COUNT;
+    const duration = 1500; // 2 seconds
+    
+    function animateCounter() {
+      const startTime = Date.now();
+      
+      function updateCount() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function for smooth animation
+        const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+        const currentNumber = Math.floor(targetNumber * easeOutQuart);
+        
+        userCounter.textContent = currentNumber.toLocaleString();
+        
+        if (progress < 1) {
+          requestAnimationFrame(updateCount);
+        }
+      }
+      
+      updateCount();
+    }
+    
+    // Start animation when element is visible
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          animateCounter();
+          observer.unobserve(entry.target);
+        }
+      });
+    });
+    
+    observer.observe(userCounter);
+  }
 });
 </script>
 {% endblock content %}
