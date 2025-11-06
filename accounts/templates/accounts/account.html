@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card bg-dark text-white shadow">
+        <div class="card-header">
+          <h3 class="mb-0"><i class="fas fa-user-cog me-2"></i>Account Settings</h3>
+        </div>
+        <div class="card-body">
+          <!-- User Information Section -->
+          <div class="mb-4">
+            <h5 class="text-spotify-green"><i class="fas fa-user me-2"></i>User Information</h5>
+            <hr class="border-secondary">
+            <div class="row">
+              <div class="col-sm-3"><strong>Username:</strong></div>
+              <div class="col-sm-9">{{ user.username }}</div>
+            </div>
+            <div class="row mt-2">
+              <div class="col-sm-3"><strong>Member since:</strong></div>
+              <div class="col-sm-9">{{ user.date_joined|date:"F d, Y" }}</div>
+            </div>
+          </div>
+
+          <!-- Spotify Connection Section -->
+          <div class="mb-4">
+            <h5 class="text-spotify-green"><i class="fab fa-spotify me-2"></i>Spotify Connection</h5>
+            <hr class="border-secondary">
+            
+            {% if template_data.spotify_connected %}
+              <div class="alert alert-success d-flex align-items-center" role="alert">
+                <i class="fas fa-check-circle me-2"></i>
+                <div>
+                  <strong>Connected to Spotify</strong>
+                  {% if template_data.spotify_profile %}
+                    <br>
+                    <small class="text-muted">
+                      Logged in as: <strong>{{ template_data.spotify_profile.display_name|default:template_data.spotify_profile.id }}</strong>
+                      {% if template_data.spotify_profile.email %}
+                        ({{ template_data.spotify_profile.email }})
+                      {% endif %}
+                    </small>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <div class="mt-3">
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#disconnectModal">
+                  <i class="fas fa-unlink me-2"></i>Disconnect Spotify
+                </button>
+              </div>
+            {% else %}
+              <div class="alert alert-warning d-flex align-items-center" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <div>
+                  <strong>Not connected to Spotify</strong><br>
+                  <small class="text-muted">Connect your Spotify account to manage your playlists</small>
+                </div>
+              </div>
+              
+              <div class="mt-3">
+                <a href="{% url 'accounts.spotify_connect' %}" class="btn btn-spotify">
+                  <i class="fab fa-spotify me-2"></i>Connect to Spotify
+                </a>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Additional Options -->
+          <div class="mb-4">
+            <h5 class="text-spotify-green"><i class="fas fa-cogs me-2"></i>Account Actions</h5>
+            <hr class="border-secondary">
+            <div class="d-grid gap-2 d-md-block">
+              <a href="{% url 'home.index' %}" class="btn btn-outline-light">
+                <i class="fas fa-home me-2"></i>Back to Home
+              </a>
+              {% if template_data.spotify_connected %}
+                <a href="{% url 'playlists.dashboard' %}" class="btn btn-outline-success">
+                  <i class="fas fa-list me-2"></i>My Playlists
+                </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Disconnect Confirmation Modal -->
+{% if template_data.spotify_connected %}
+<div class="modal fade" id="disconnectModal" tabindex="-1" aria-labelledby="disconnectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header">
+        <h5 class="modal-title" id="disconnectModalLabel">Disconnect Spotify</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to disconnect your Spotify account?</p>
+        <p class="text-warning"><small><i class="fas fa-exclamation-triangle me-1"></i>This will remove access to your playlists and you'll need to reconnect to use CleanBeats features.</small></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <a href="{% url 'accounts.spotify_disconnect' %}" class="btn btn-danger">
+          <i class="fas fa-unlink me-2"></i>Disconnect
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock content %}

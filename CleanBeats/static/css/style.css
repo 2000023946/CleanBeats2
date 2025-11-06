@@ -19,6 +19,10 @@ body.bg-dark {
   --spotify-green-dark: #169c46;
 }
 
+.text-spotify-green {
+  color: var(--spotify-green) !important;
+}
+
 /* Dark theme navbar links with Spotify green accents */
 .navbar-dark .nav-link {
   color: #ffffff !important;

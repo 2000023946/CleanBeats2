@@ -47,6 +47,18 @@ def get_user_playlists(user):
     return r.json()
 
 
+def get_spotify_user_profile(user):
+    """Get the current user's Spotify profile information."""
+    st = SpotifyToken.objects.get(user=user)
+    if st.is_expired():
+        st = refresh_spotify_token_for_user(user)
+    headers = {"Authorization": f"Bearer {st.access_token}"}
+    url = f"{API_BASE}/me"
+    r = requests.get(url, headers=headers)
+    r.raise_for_status()
+    return r.json()
+
+
 def get_playlist_tracks(user, playlist_id):
     st = SpotifyToken.objects.get(user=user)
     if st.is_expired():

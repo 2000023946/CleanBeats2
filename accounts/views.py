@@ -9,6 +9,7 @@ from django.utils import timezone
 from datetime import timedelta
 import requests
 from .models import SpotifyToken
+from .spotify import get_spotify_user_profile
 from urllib.parse import urlencode
 
 
@@ -112,4 +113,47 @@ def spotify_callback(request):
         # Not logged in: store token data in session and prompt user to login/signup
         request.session['spotify_oauth'] = token_data
         return redirect('accounts.login')
+
+
+@login_required
+def account(request):
+    """Display user account information including Spotify connection status."""
+    template_data = {'title': 'Account'}
+    
+    # Check if user has Spotify token
+    spotify_connected = False
+    spotify_profile = None
+    
+    try:
+        spotify_token = SpotifyToken.objects.get(user=request.user)
+        spotify_connected = True
+        # Get Spotify profile info
+        try:
+            spotify_profile = get_spotify_user_profile(request.user)
+        except Exception as e:
+            # If we can't get profile (token expired, etc), still show as connected
+            spotify_profile = None
+    except SpotifyToken.DoesNotExist:
+        spotify_connected = False
+    
+    template_data.update({
+        'spotify_connected': spotify_connected,
+        'spotify_profile': spotify_profile,
+    })
+    
+    return render(request, 'accounts/account.html', {'template_data': template_data})
+
+
+@login_required
+def disconnect_spotify(request):
+    """Disconnect user's Spotify account by deleting the token."""
+    try:
+        spotify_token = SpotifyToken.objects.get(user=request.user)
+        spotify_token.delete()
+    except SpotifyToken.DoesNotExist:
+        pass  # Already disconnected
+    
+    return redirect('accounts.account')
+
+
 # Create your views here.
