@@ -2,58 +2,321 @@
 {% block content %}
 <header class="masthead bg-index text-white text-center py-4">
   <div class="container d-flex align-items-center flex-column pt-2">
-    <h2>CleanBeats</h2>
+    <h2 class="fw-bold">CleanBeats</h2>
     <p>Tune your music playlist to perfection</p>
   </div>
 </header>
 <div class="p-3">
   <div class="container">
-    <div class="row mt-3">
-      <div class="col mx-auto text-center mb-3">
-        <h4>Welcome to CleanBeats!</h4>
+    <div class="row mt-4">
+      <!-- Left Section: Scrollable Content for Authenticated Users -->
+      <div class="col-md-6">
+        <div class="pe-md-4" id="scrollable-content">
+          {% if user.is_authenticated %}
+            <!-- Onboarding Guide -->
+            <div class="content-section mb-5">
+              <h3 class="text-spotify-green mb-4">
+                <i class="fas fa-play-circle me-2"></i>Getting Started with CleanBeats
+              </h3>
+              <div class="step-list">
+                <div class="step-item mb-4">
+                  <div class="d-flex align-items-start">
+                    <div class="step-number bg-spotify-green text-dark fw-bold rounded-circle d-flex align-items-center justify-content-center me-3">1</div>
+                    <div>
+                      <h5 class="text-white mb-2">Connect Your Spotify Account</h5>
+                      <p class="text-light-gray mb-0">Securely link your Spotify account to access all your playlists. We only request the permissions we need to help you clean your music.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="step-item mb-4">
+                  <div class="d-flex align-items-start">
+                    <div class="step-number bg-spotify-green text-dark fw-bold rounded-circle d-flex align-items-center justify-content-center me-3">2</div>
+                    <div>
+                      <h5 class="text-white mb-2">Choose a Playlist to Clean</h5>
+                      <p class="text-light-gray mb-0">Browse your playlists and select one you'd like to organize. We recommend starting with your largest or oldest playlist for the best results.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="step-item mb-4">
+                  <div class="d-flex align-items-start">
+                    <div class="step-number bg-spotify-green text-dark fw-bold rounded-circle d-flex align-items-center justify-content-center me-3">3</div>
+                    <div>
+                      <h5 class="text-white mb-2">Start Swiping</h5>
+                      <p class="text-light-gray mb-0">Listen to each song and swipe right to keep or left to remove. Take your time - you can always undo decisions later.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="step-item mb-4">
+                  <div class="d-flex align-items-start">
+                    <div class="step-number bg-spotify-green text-dark fw-bold rounded-circle d-flex align-items-center justify-content-center me-3">4</div>
+                    <div>
+                      <h5 class="text-white mb-2">Review & Save</h5>
+                      <p class="text-light-gray mb-0">Review your choices on the summary screen, then save your cleaned playlist back to Spotify. Your original playlist stays safe!</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Success Stories -->
+            <div class="content-section mb-5">
+              <h3 class="text-spotify-green mb-4">
+                <i class="fas fa-star me-2"></i>What Our Users Are Saying
+              </h3>
+              <div class="testimonial-list">
+                <div class="testimonial-item mb-4 p-4 bg-dark-subtle rounded">
+                  <div class="d-flex align-items-center mb-3">
+                    <div class="user-avatar bg-spotify-green text-dark fw-bold rounded-circle d-flex align-items-center justify-content-center me-3">M</div>
+                    <div>
+                      <h6 class="text-white mb-0">Music Lover from California</h6>
+                      <small class="text-light-gray">Cleaned 847 songs from 12 playlists</small>
+                    </div>
+                  </div>
+                  <p class="text-light-gray mb-0">"I had a 2000-song playlist that was completely overwhelming. CleanBeats helped me narrow it down to 400 songs I actually love. The swipe interface makes it so easy!"</p>
+                </div>
+                
+                <div class="testimonial-item mb-4 p-4 bg-dark-subtle rounded">
+                  <div class="d-flex align-items-center mb-3">
+                    <div class="user-avatar bg-spotify-green text-dark fw-bold rounded-circle d-flex align-items-center justify-content-center me-3">A</div>
+                    <div>
+                      <h6 class="text-white mb-0">DJ from New York</h6>
+                      <small class="text-light-gray">Cleaned 1,250 songs from 8 playlists</small>
+                    </div>
+                  </div>
+                  <p class="text-light-gray mb-0">"The data insights are incredible! I discovered I had way too many slow songs in my workout playlist. Now my mixes are perfectly balanced."</p>
+                </div>
+                
+                <div class="testimonial-item mb-4 p-4 bg-dark-subtle rounded">
+                  <div class="d-flex align-items-center mb-3">
+                    <div class="user-avatar bg-spotify-green text-dark fw-bold rounded-circle d-flex align-items-center justify-content-center me-3">S</div>
+                    <div>
+                      <h6 class="text-white mb-0">Student from Texas</h6>
+                      <small class="text-light-gray">Cleaned 423 songs from 5 playlists</small>
+                    </div>
+                  </div>
+                  <p class="text-light-gray mb-0">"I was worried about accidentally deleting songs I liked, but the review feature saved me multiple times. Super user-friendly and safe!"</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Privacy & Security -->
+            <div class="content-section mb-5">
+              <h3 class="text-spotify-green mb-4">
+                <i class="fas fa-shield-alt me-2"></i>Your Privacy & Security
+              </h3>
+              <div class="privacy-list">
+                <div class="privacy-item mb-4">
+                  <div class="d-flex align-items-start">
+                    <i class="fas fa-lock text-spotify-green me-3 mt-1"></i>
+                    <div>
+                      <h5 class="text-white mb-2">Secure Authentication</h5>
+                      <p class="text-light-gray mb-0">We use Spotify's official OAuth system. We never see your password, and you can revoke access anytime from your Spotify settings.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="privacy-item mb-4">
+                  <div class="d-flex align-items-start">
+                    <i class="fas fa-eye-slash text-spotify-green me-3 mt-1"></i>
+                    <div>
+                      <h5 class="text-white mb-2">Minimal Data Collection</h5>
+                      <p class="text-light-gray mb-0">We only access your playlist information needed for cleaning. We don't store your music files or personal listening history beyond what's necessary.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="privacy-item mb-4">
+                  <div class="d-flex align-items-start">
+                    <i class="fas fa-undo text-spotify-green me-3 mt-1"></i>
+                    <div>
+                      <h5 class="text-white mb-2">Non-Destructive Process</h5>
+                      <p class="text-light-gray mb-0">Your original playlists remain untouched. We create new cleaned versions, so you never lose your original music collection.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="privacy-item mb-4">
+                  <div class="d-flex align-items-start">
+                    <i class="fas fa-trash-alt text-spotify-green me-3 mt-1"></i>
+                    <div>
+                      <h5 class="text-white mb-2">Data Deletion</h5>
+                      <p class="text-light-gray mb-0">Want to leave? You can delete all your data from our servers at any time through your account settings. No questions asked.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <!-- Marketing content for non-authenticated users -->
+            <h3 class="text-spotify-green mb-3">Join Millions of Users Worldwide</h3>
+            <p class="text-light-gray mb-4 fs-5">Transform your music experience with the revolutionary playlist cleaning platform trusted by music lovers everywhere.</p>
+            
+            <h3 class="text-spotify-green mb-4">Why Choose CleanBeats?</h3>
+            <div class="feature-list">
+              <div class="feature-item mb-4">
+                <div class="d-flex align-items-center mb-2">
+                  <i class="fas fa-hand-pointer text-spotify-green me-3 fa-lg"></i>
+                  <h5 class="mb-0 text-white fw-bold">Swipe to Clean</h5>
+                </div>
+                <p class="text-light-gray ms-5 mb-0">Swipe right to keep, left to remove songs</p>
+              </div>
+              
+              <div class="feature-item mb-4">
+                <div class="d-flex align-items-center mb-2">
+                  <i class="fas fa-headphones text-spotify-green me-3 fa-lg"></i>
+                  <h5 class="mb-0 text-white fw-bold">Listen Before You Decide</h5>
+                </div>
+                <p class="text-light-gray ms-5 mb-0">Preview each song with built-in audio player before swiping</p>
+              </div>
+              
+              <div class="feature-item mb-4">
+                <div class="d-flex align-items-center mb-2">
+                  <i class="fas fa-chart-bar text-spotify-green me-3 fa-lg"></i>
+                  <h5 class="mb-0 text-white fw-bold">Data-Driven Insights</h5>
+                </div>
+                <p class="text-light-gray ms-5 mb-0">Visualize your music taste with charts, world maps, and listening statistics</p>
+              </div>
+              
+              <div class="feature-item mb-4">
+                <div class="d-flex align-items-center mb-2">
+                  <i class="fab fa-spotify text-spotify-green me-3 fa-lg"></i>
+                  <h5 class="mb-0 text-white fw-bold">Seamless Spotify Integration</h5>
+                </div>
+                <p class="text-light-gray ms-5 mb-0">Access all your playlists and save changes directly to Spotify</p>
+              </div>
+            </div>
+          {% endif %}
+        </div>
       </div>
-    </div>
-    
-    {% if user.is_authenticated %}
-    <!-- Connect to Spotify Card (for authenticated users) -->
-    <div class="row mt-4 justify-content-center">
-      <div class="col-md-6 mb-3">
-        <div class="card bg-dark text-white h-100 shadow">
-          <div class="card-body text-center d-flex flex-column">
-            <i class="fab fa-spotify fa-3x mb-3" style="color: var(--spotify-green);"></i>
-            <h5 class="card-title">Connect to Spotify</h5>
-            <p class="card-text flex-grow-1">Connect your Spotify account to start managing and cleaning your playlists with CleanBeats.</p>
-            <a href="{% url 'accounts.spotify_connect' %}" class="btn btn-spotify mt-auto">Connect to Spotify</a>
+
+      <!-- Right Section: Sticky Spotify Card -->
+      <div class="col-md-6">
+        <div class="sticky-card-container">
+          <div class="spotify-connect-card" id="spotify-card">
+            <div class="card bg-dark text-white h-100 shadow-lg">
+              <div class="card-body text-center d-flex flex-column p-5">
+                <i class="fab fa-spotify fa-4x mb-4" style="color: var(--spotify-green);"></i>
+                {% if user.is_authenticated %}
+                  <h4 class="card-title mb-3">Ready to Get Started?</h4>
+                  <p class="card-text flex-grow-1 mb-4">Connect your Spotify account to start cleaning and organizing your playlists with CleanBeats.</p>
+                  <a href="{% url 'accounts.spotify_connect' %}" class="btn btn-spotify btn-lg">
+                    <i class="fab fa-spotify me-2"></i>Connect to Spotify
+                  </a>
+                {% else %}
+                  <h4 class="card-title mb-3">Get Started Today</h4>
+                  <p class="card-text flex-grow-1 mb-4">Join thousands of music enthusiasts who have already transformed their listening experience. Create your free account now!</p>
+                  <div class="d-grid gap-3">
+                    <a href="{% url 'accounts.signup' %}" class="btn btn-spotify btn-lg">
+                      <i class="fas fa-user-plus me-2"></i>Sign Up
+                    </a>
+                    <a href="{% url 'accounts.login' %}" class="btn btn-outline-light btn-lg">
+                      <i class="fas fa-sign-in-alt me-2"></i>Already Have an Account?
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-    {% else %}
-    <!-- Login and Create Account Cards (for non-authenticated users) -->
-    <div class="row mt-4 justify-content-center">
-      <div class="col-md-4 mb-3">
-        <div class="card bg-dark text-white h-100 shadow">
-          <div class="card-body text-center d-flex flex-column">
-            <i class="fas fa-sign-in-alt fa-3x mb-3" style="color: var(--spotify-green);"></i>
-            <h5 class="card-title">Login</h5>
-            <p class="card-text flex-grow-1">Already have an account? Sign in to access your playlists and fine-tune them.</p>
-            <a href="{% url 'accounts.login' %}" class="btn btn-spotify mt-auto">Login</a>
-          </div>
-        </div>
-      </div>
-      
-      <div class="col-md-4 mb-3">
-        <div class="card bg-dark text-white h-100 shadow">
-          <div class="card-body text-center d-flex flex-column">
-            <i class="fas fa-user-plus fa-3x mb-3" style="color: var(--spotify-green);"></i>
-            <h5 class="card-title">Create Account</h5>
-            <p class="card-text flex-grow-1">New to CleanBeats? Create an account and link it to your Spotify account.</p>
-            <a href="{% url 'accounts.signup' %}" class="btn btn-spotify mt-auto">Sign Up</a>
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
   </div>
 </div>
+
+<style>
+.text-light-gray {
+  color: #d1d1d1 !important;
+}
+
+.bg-spotify-green {
+  background-color: var(--spotify-green) !important;
+}
+
+/* Step numbers and user avatars */
+.step-number, .user-avatar {
+  width: 35px;
+  height: 35px;
+  font-size: 14px;
+}
+
+/* Testimonial background */
+.bg-dark-subtle {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Sticky card container */
+.sticky-card-container {
+  position: sticky;
+  top: 20px;
+  height: fit-content;
+}
+
+/* Spotify card styling */
+.spotify-connect-card .card {
+  border-radius: 15px !important;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.spotify-connect-card .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(29, 185, 84, 0.3) !important;
+  border-color: var(--spotify-green);
+}
+
+.spotify-connect-card .card-body {
+  border-radius: 15px;
+}
+
+/* Gradient background effect */
+body.bg-dark {
+  background: linear-gradient(180deg, #121212 0%, #121212 50%, #2a2a2a 100%);
+  transition: background 0.3s ease;
+}
+
+body.scrolled {
+  background: linear-gradient(180deg, #121212 0%, #1e1e1e 30%, #3a3a3a 70%, #4a4a4a 100%);
+}
+
+/* Card transparency on scroll */
+#spotify-card {
+  transition: opacity 0.3s ease;
+}
+
+#spotify-card.scrolled {
+  opacity: 0.85;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const body = document.body;
+  const spotifyCard = document.getElementById('spotify-card');
+  let scrollTimeout;
+
+  function handleScroll() {
+    const scrolled = window.scrollY > 100;
+    
+    // Add/remove scrolled class for gradient effect
+    if (scrolled) {
+      body.classList.add('scrolled');
+      spotifyCard.classList.add('scrolled');
+    } else {
+      body.classList.remove('scrolled');
+      spotifyCard.classList.remove('scrolled');
+    }
+  }
+
+  // Throttle scroll events for better performance
+  window.addEventListener('scroll', function() {
+    if (scrollTimeout) {
+      clearTimeout(scrollTimeout);
+    }
+    scrollTimeout = setTimeout(handleScroll, 10);
+  });
+});
+</script>
 {% endblock content %}
