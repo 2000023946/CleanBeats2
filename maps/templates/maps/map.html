@@ -1,0 +1,360 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="bg-dark border-bottom border-secondary px-3 py-2 d-flex align-items-center gap-3">
+        <label class="me-2 mb-0" for="playlistSelect">Playlist:</label>
+        <select id="playlistSelect" class="form-select form-select-sm w-auto bg-dark text-white border-secondary"></select>
+        <div class="form-check form-switch text-white-50 small">
+            <input class="form-check-input" type="checkbox" role="switch" id="toggleMarkers" checked>
+            <label class="form-check-label" for="toggleMarkers">Markers</label>
+        </div>
+        <div id="legend" class="ms-auto small text-white-50">
+            <span class="me-3"><span style="display:inline-block;width:12px;height:12px;background:#1DB954;margin-right:6px;border:1px solid #0b3;vertical-align:middle"></span>Presence</span>
+            <span><span style="display:inline-block;width:12px;height:12px;background:#b91c1c;margin-right:6px;opacity:.5;border:1px solid #7f1d1d;vertical-align:middle"></span>No Presence</span>
+        </div>
+    </div>
+        <div id="mapProgress" class="w-100" style="height:3px; background: rgba(255,255,255,0.08); display:none;">
+            <div id="mapProgressBar" style="height:3px; width:0; background:#1DB954; box-shadow:0 0 8px rgba(29,185,84,.6); transition: width .2s ease;"></div>
+        </div>
+    <div id='map' style='width: 100%; height: calc(100vh - 56px - 44px);'></div>
+</div>
+
+<link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+<style>
+    .mapboxgl-popup-content {
+        background: #212529 !important;
+        color: #fff !important;
+        border: 1px solid #495057;
+    }
+    .mapboxgl-popup-anchor-top .mapboxgl-popup-tip,
+    .mapboxgl-popup-anchor-top-left .mapboxgl-popup-tip,
+    .mapboxgl-popup-anchor-top-right .mapboxgl-popup-tip {
+        border-bottom-color: #212529 !important;
+    }
+    .mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip,
+    .mapboxgl-popup-anchor-bottom-left .mapboxgl-popup-tip,
+    .mapboxgl-popup-anchor-bottom-right .mapboxgl-popup-tip {
+        border-top-color: #212529 !important;
+    }
+    .mapboxgl-popup-anchor-left .mapboxgl-popup-tip {
+        border-right-color: #212529 !important;
+    }
+    .mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+        border-left-color: #212529 !important;
+    }
+    .mapboxgl-popup-close-button {
+        color: white;
+        font-size: 1.5rem;
+        padding-right: 8px;
+    }
+</style>
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+<script src="{% static 'js/turf.min.js' %}"></script>
+<script>
+    mapboxgl.accessToken = '{{ mapbox_access_token }}';
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/dark-v11',
+        center: [0, 20],
+        zoom: 1.4
+    });
+
+    const playlistSelect = document.getElementById('playlistSelect');
+    const toggleMarkersEl = document.getElementById('toggleMarkers');
+    const progressWrap = document.getElementById('mapProgress');
+    const progressBar = document.getElementById('mapProgressBar');
+    let progressTimer = null;
+    let countryMarkers = [];
+    let markersEnabled = true;
+    let markersRenderTimer = null;
+    let lastPresenceList = [];
+
+    function progressStart() {
+        if (!progressWrap || !progressBar) return;
+        progressWrap.style.display = 'block';
+        progressBar.style.width = '0%';
+        let val = 10;
+        progressBar.style.width = val + '%';
+        clearInterval(progressTimer);
+        progressTimer = setInterval(() => {
+            val = Math.min(val + (Math.random() * 8 + 2), 90);
+            progressBar.style.width = val + '%';
+        }, 200);
+    }
+
+    function progressTo(percent) {
+        if (!progressBar) return;
+        progressBar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+    }
+
+    function progressDone() {
+        if (!progressWrap || !progressBar) return;
+        clearInterval(progressTimer);
+        progressBar.style.width = '100%';
+        setTimeout(() => {
+            progressWrap.style.display = 'none';
+            progressBar.style.width = '0%';
+        }, 350);
+    }
+    let topArtistsByIso2 = {};
+
+    async function fetchPlaylists() {
+        const res = await fetch('/maps/api/playlists/');
+        if (!res.ok) return;
+        const data = await res.json();
+        playlistSelect.innerHTML = '';
+        (data.playlists || []).forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id; opt.textContent = p.name; playlistSelect.appendChild(opt);
+        });
+        if (playlistSelect.options.length > 0) {
+            await updateGeo(playlistSelect.value);
+        }
+    }
+
+    async function updateGeo(playlistId) {
+        progressStart();
+        progressTo(20);
+        const res = await fetch(`/maps/api/playlist-geo/?playlist_id=${encodeURIComponent(playlistId)}`);
+        if (!res.ok) { progressDone(); return; }
+        progressTo(60);
+        const geo = await res.json();
+        console.log('Geo data received:', geo);
+        progressTo(75);
+        const presence = geo.presence_iso2 || [];
+        const absence = geo.absence_iso2 || [];
+        console.log('Presence countries:', presence.length, 'Absence countries:', absence.length);
+        topArtistsByIso2 = geo.top_artists || {};
+        lastPresenceList = presence.slice();
+
+        // Ensure layers exist before applying filters
+        ensureCountryLayer();
+
+        // Build filters using legacy 'in' filter format (simpler and well-supported)
+        const presenceUpper = presence.map(c => String(c).toUpperCase());
+        const absenceUpper = absence.map(c => String(c).toUpperCase());
+        
+        console.log('Setting filters. Presence codes:', presenceUpper.slice(0, 10), '...');
+        
+        try {
+            if (presenceUpper.length) {
+                // Legacy filter format: ['in', property, value1, value2, ...]
+                map.setFilter('presence-fill', ['in', 'iso_3166_1', ...presenceUpper]);
+                console.log('Presence filter set successfully');
+            } else {
+                map.setFilter('presence-fill', ['==', 'iso_3166_1', '___NONE___']);
+            }
+            if (absenceUpper.length) {
+                map.setFilter('absence-fill', ['in', 'iso_3166_1', ...absenceUpper]);
+                console.log('Absence filter set successfully');
+            } else {
+                map.setFilter('absence-fill', ['==', 'iso_3166_1', '___NONE___']);
+            }
+        } catch (err) {
+            console.error('Error setting filters:', err);
+        }
+        progressDone();
+        // Rebuild markers for countries with top artists
+        try { if (markersEnabled) renderCountryMarkers(presence, topArtistsByIso2); else clearCountryMarkers(); } catch (e) { /* no-op */ }
+    }
+
+    function ensureCountryLayer() {
+        if (map.getSource('mapbox-country-boundaries')) return;
+        console.log('Adding country boundaries source and layers...');
+        map.addSource('mapbox-country-boundaries', {
+            type: 'vector',
+            url: 'mapbox://mapbox.country-boundaries-v1'
+        });
+        map.addLayer({
+            id: 'absence-fill',
+            type: 'fill',
+            source: 'mapbox-country-boundaries',
+            'source-layer': 'country_boundaries',
+            paint: {
+                'fill-color': '#b91c1c',
+                'fill-opacity': 0.45
+            },
+            filter: ['==', 'iso_3166_1', '___NONE___'] // Start hidden
+        });
+        map.addLayer({
+            id: 'presence-fill',
+            type: 'fill',
+            source: 'mapbox-country-boundaries',
+            'source-layer': 'country_boundaries',
+            paint: {
+                'fill-color': '#1DB954',
+                'fill-opacity': 0.65
+            },
+            filter: ['==', 'iso_3166_1', '___NONE___'] // Start hidden
+        });
+        map.addLayer({
+            id: 'country-outline',
+            type: 'line',
+            source: 'mapbox-country-boundaries',
+            'source-layer': 'country_boundaries',
+            paint: {
+                'line-color': '#6b7280',
+                'line-width': 0.6,
+                'line-opacity': 0.6
+            }
+        });
+
+        const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true });
+        map.on('click', ['presence-fill','absence-fill'], async (e) => {
+            const f = e.features && e.features[0];
+            if (!f) return;
+            const iso2 = f.properties && (f.properties.iso_3166_1 || f.properties.ISO_A2);
+            const name = (f.properties && (f.properties.name_en || f.properties.ADMIN || f.properties.NAME_EN || f.properties.NAME)) || 'Country';
+            
+            // Show loading state
+            popup.setLngLat(e.lngLat).setHTML(`<div><div class="fw-semibold mb-1">${name}</div><div class="text-white-50"><span class="spinner-border spinner-border-sm me-2"></span>Loading charts...</div></div>`).addTo(map);
+            
+            // Fetch Spotify charts for this country
+            try {
+                const res = await fetch(`/maps/api/country-charts/?country=${encodeURIComponent(iso2)}`);
+                const data = await res.json();
+                
+                let content = `<div><div class="fw-semibold mb-2">${name}</div>`;
+                
+                if (data.artists && data.artists.length > 0) {
+                    content += `<div class="text-white-50 small mb-2">${data.has_chart ? '🎵 Top Artists (Spotify Charts)' : '🌍 Global Charts'}</div>`;
+                    content += data.artists.map((a, i) => 
+                        `<div class="d-flex align-items-center mb-1">
+                            <span class="me-2 text-white-50">${i + 1}.</span>
+                            <span>${a.name}</span>
+                            <span class="ms-auto text-white-50 small">${a.count} tracks</span>
+                        </div>`
+                    ).join('');
+                } else {
+                    content += '<div class="text-white-50">No chart data available for this country</div>';
+                }
+                
+                content += '</div>';
+                popup.setHTML(content);
+            } catch (err) {
+                console.error('Failed to fetch charts:', err);
+                popup.setHTML(`<div><div class="fw-semibold mb-1">${name}</div><div class="text-white-50">Failed to load chart data</div></div>`);
+            }
+        });
+        map.on('mousemove', ['presence-fill','absence-fill'], () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', ['presence-fill','absence-fill'], () => map.getCanvas().style.cursor = '');
+    }
+
+    function clearCountryMarkers() {
+        if (!countryMarkers) return;
+        countryMarkers.forEach(m => { try { m.remove(); } catch (_) {} });
+        countryMarkers = [];
+    }
+
+    function renderCountryMarkers(presenceList, topArtists) {
+        if (!map || !topArtists) return;
+        clearCountryMarkers();
+        const presSet = new Set((presenceList || []).map(c => String(c).toUpperCase()));
+        // Query currently rendered country polygons and dedupe by ISO2
+        const rendered = map.queryRenderedFeatures({ layers: ['presence-fill','absence-fill'] }) || [];
+        const byIso = {};
+        for (const f of rendered) {
+            const iso2 = f.properties && (f.properties.iso_3166_1 || f.properties.ISO_A2);
+            if (!iso2) continue;
+            const key = String(iso2).toUpperCase();
+            if (!byIso[key]) byIso[key] = f;
+        }
+
+        const isoList = Object.keys(topArtists || {});
+        for (const iso of isoList) {
+            const key = String(iso).toUpperCase();
+            const f = byIso[key];
+            if (!f) continue;
+
+            let center = null;
+            try {
+                const pt = turf && turf.centerOfMass ? turf.centerOfMass(f) : null;
+                center = pt && pt.geometry && pt.geometry.coordinates;
+            } catch (_) {}
+            if (!center) {
+                center = computeFeatureCenter(f);
+            }
+            if (!center) continue;
+
+            const name = (f.properties && (f.properties.name_en || f.properties.ADMIN || f.properties.NAME_EN || f.properties.NAME)) || key;
+            const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: false }).setHTML(`<div><div class="fw-semibold mb-1">${name}</div><div class="text-white-50 small">Click country for Spotify charts</div></div>`);
+            const color = presSet.has(key) ? '#1DB954' : '#b91c1c';
+            const marker = new mapboxgl.Marker({ color }).setLngLat(center).setPopup(popup).addTo(map);
+            countryMarkers.push(marker);
+        }
+    }
+
+    function computeFeatureCenter(feature) {
+        const geom = feature && feature.geometry;
+        if (!geom) return null;
+        const type = geom.type;
+        if (type === 'Point') return geom.coordinates;
+        let minX =  Infinity, minY =  Infinity, maxX = -Infinity, maxY = -Infinity;
+        const update = (coord) => {
+            const x = coord[0], y = coord[1];
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+        };
+        const walk = (coords) => {
+            for (const c of coords) {
+                if (Array.isArray(c[0])) walk(c); else update(c);
+            }
+        };
+        if (type === 'Polygon') {
+            walk(geom.coordinates);
+        } else if (type === 'MultiPolygon') {
+            for (const poly of geom.coordinates) walk(poly);
+        } else if (type === 'LineString' || type === 'MultiLineString') {
+            walk(geom.coordinates);
+        } else {
+            return null;
+        }
+        if (minX === Infinity) return null;
+        return [(minX + maxX) / 2, (minY + maxY) / 2];
+    }
+
+    function scheduleMarkerRender() {
+        if (!markersEnabled) return;
+        clearTimeout(markersRenderTimer);
+        markersRenderTimer = setTimeout(() => {
+            try { renderCountryMarkers(lastPresenceList, topArtistsByIso2); } catch (e) { /* no-op */ }
+        }, 150);
+    }
+
+    map.on('load', async () => {
+        ensureCountryLayer();
+        
+        // Debug: Check what features exist in the source after tiles load
+        map.once('idle', () => {
+            const features = map.querySourceFeatures('mapbox-country-boundaries', {
+                sourceLayer: 'country_boundaries'
+            });
+            if (features.length > 0) {
+                console.log('Sample feature properties:', features[0].properties);
+                console.log('Available property keys:', Object.keys(features[0].properties));
+            } else {
+                console.log('No features found in source yet');
+            }
+        });
+        
+        await fetchPlaylists();
+        // Re-render markers when map goes idle after zoom/pan/tiles load
+        map.on('idle', () => scheduleMarkerRender());
+    });
+
+    playlistSelect.addEventListener('change', async (e) => {
+        if (e.target.value) await updateGeo(e.target.value);
+    });
+
+    toggleMarkersEl.addEventListener('change', () => {
+        markersEnabled = !!toggleMarkersEl.checked;
+        if (markersEnabled) {
+            scheduleMarkerRender();
+        } else {
+            clearCountryMarkers();
+        }
+    });
+</script>
+{% endblock %}
