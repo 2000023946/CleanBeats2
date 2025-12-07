@@ -41,6 +41,22 @@ def playlist_dashboard(request):
     try:
         data = get_user_playlists(request.user)
         playlists = data.get("items", [])
+        
+        # Only fetch fresh count for recently modified playlist (stored in session)
+        modified_playlist_id = request.session.get('modified_playlist_id')
+        if modified_playlist_id:
+            for playlist in playlists:
+                if playlist['id'] == modified_playlist_id:
+                    try:
+                        fresh_data = get_playlist(request.user, playlist['id'])
+                        if fresh_data and 'tracks' in fresh_data:
+                            playlist['tracks']['total'] = fresh_data['tracks']['total']
+                    except Exception:
+                        pass
+                    break
+            # Clear the session flag after refreshing
+            del request.session['modified_playlist_id']
+                
     except requests.RequestException as e:
         playlists = []
         error_message = f"Failed to fetch playlists: {e}"
@@ -252,6 +268,9 @@ def apply_playlist_changes(request, playlist_id):
         
         # Delete removed songs from database
         removed_songs.delete()
+        
+        # Mark this playlist as modified so dashboard refreshes its count
+        request.session['modified_playlist_id'] = playlist_id
         
         return JsonResponse({
             'status': 'success',
