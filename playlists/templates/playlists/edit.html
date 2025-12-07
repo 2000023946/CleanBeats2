@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container my-5 text-center position-relative">
-    <a href="{% url 'playlists.kept' playlist_id=playlist_id %}" class="btn btn-outline-spotify btn-sm position-absolute top-0 end-0 mt-2 me-2">View Kept</a>
+    <div class="position-absolute top-0 end-0 mt-2 me-2 d-flex gap-2">
+        <a href="{% url 'playlists.edit_by_id' playlist_id=playlist_id %}?show_all=true" class="btn btn-outline-secondary btn-sm">Reset Progress</a>
+        <a href="{% url 'playlists.kept' playlist_id=playlist_id %}" class="btn btn-outline-spotify btn-sm">View Choices</a>
+    </div>
     <h2 class="mb-4">{{ playlist_name }}</h2>
 
     {% if songs %}
@@ -14,7 +17,7 @@
               data-preview="{{ song.preview_url }}"
               data-spotify="{{ song.spotify_url }}"
               data-artists="{{ song.artists|join:", " }}"
-                          {% if not forloop.last %}style="z-index: {{ forloop.revcounter }};"{% endif %}>
+                          {% if not forloop.last %}style="z-index: {{ forloop.revcounter }};"{% endif %}> 
                 
                 <!-- Song image -->
              <img src="{{ song.image_url|default:'/static/img/placeholder.png' }}" 
@@ -62,8 +65,17 @@
             <button class="btn btn-danger remove-btn flex-fill">✖ Remove</button>
             <button class="btn btn-spotify keep-btn flex-fill">✔ Keep</button>
         </div>
+
+        <!-- Progress Tracker -->
+        <div class="progress-tracker mt-4">
+            <p class="text-muted">Progress: <strong><span id="processed-count">{{ processed_count }}</span> / {{ total_count }}</strong></p>
+        </div>
     {% else %}
-        <p class="text-muted">No songs found in this playlist.</p>
+        {% if has_songs_in_playlist %}
+            <p class="text-muted">No songs left in playlist to edit.</p>
+        {% else %}
+            <p class="text-muted">No songs found in this playlist.</p>
+        {% endif %}
     {% endif %}
 </div>
 
@@ -71,6 +83,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const stack = document.querySelector('.song-stack');
     const actionButtons = document.getElementById('action-buttons');
+    const processedCountEl = document.getElementById('processed-count');
 
     function getCards() {
         const cards = stack.querySelectorAll('.song-card');
@@ -78,6 +91,13 @@ document.addEventListener('DOMContentLoaded', () => {
             actionButtons.style.display = 'none';
         }
         return cards;
+    }
+
+    function updateProcessedCount() {
+        if (processedCountEl) {
+            const currentCount = parseInt(processedCountEl.textContent);
+            processedCountEl.textContent = currentCount + 1;
+        }
     }
 
     function removeCard(card, direction = 'right') {
@@ -93,7 +113,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const keepBtn = document.querySelector('.keep-btn');
     const removeBtn = document.querySelector('.remove-btn');
+    let isProcessing = false; // Flag to prevent double-clicks
+
     async function saveDecisionAndRemove(card, kept) {
+        // Prevent multiple clicks while processing
+        if (isProcessing) return;
+        isProcessing = true;
+
+        // Disable buttons during processing
+        keepBtn.disabled = true;
+        removeBtn.disabled = true;
+
         // extract data from card
         const payload = {
             playlist_id: '{{ playlist_id }}',
@@ -119,8 +149,18 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Failed to save decision', err);
         }
 
+        // Update progress count
+        updateProcessedCount();
+
         // remove the specific card that was acted upon
         if (card) removeCard(card, kept ? 'right' : 'left');
+
+        // Re-enable buttons after animation completes (300ms + small buffer)
+        setTimeout(() => {
+            isProcessing = false;
+            keepBtn.disabled = false;
+            removeBtn.disabled = false;
+        }, 350);
     }
 
     keepBtn.addEventListener('click', () => {

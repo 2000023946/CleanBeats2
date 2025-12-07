@@ -2,17 +2,33 @@
 {% block content %}
 <div class="container my-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Kept / Removed — Playlist</h2>
-        <a class="btn btn-secondary" href="{% url 'playlists.edit_by_id' playlist_id=playlist_id %}">Back to Edit</a>
+        <h2>My Choices</h2>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'playlists.edit_by_id' playlist_id=playlist_id %}?show_all=true">Reset Progress</a>
+            <a class="btn btn-secondary" href="{% url 'playlists.edit_by_id' playlist_id=playlist_id %}">Back to Edit</a>
+        </div>
     </div>
 
     <div class="row">
         <div class="col-md-6">
-            <h4>Kept</h4>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4>Saved</h4>
+                <div class="btn-group btn-group-sm gap-1 rounded" role="group">
+                    <button class="btn btn-outline-primary rounded" id="select-all-kept">Select All</button>
+                    <button class="btn btn-danger rounded" id="move-kept-to-removed" disabled>Move to Removed</button>
+                </div>
+            </div>
             {% if kept %}
                 <ul id="kept-list" class="list-group list-group-dark">
                 {% for s in kept %}
-                    <li class="list-group-item d-flex align-items-center kept-item" data-track-uri="{{ s.track_uri }}">
+                    <li class="list-group-item d-flex align-items-center kept-item" 
+                        data-track-uri="{{ s.track_uri }}"
+                        data-name="{{ s.name }}"
+                        data-artists="{{ s.artists|join:', ' }}"
+                        data-image="{{ s.image_url }}"
+                        data-preview="{{ s.preview_url }}"
+                        data-spotify="{{ s.spotify_url }}">
+                        <input type="checkbox" class="form-check-input me-2 kept-checkbox" data-track-uri="{{ s.track_uri }}">
                         <img src="{{ s.image_url|default:'/static/img/placeholder.png' }}" alt="cover" style="width:56px; height:56px; object-fit:cover; margin-right:12px;"/>
                         <div>
                             <div class="fw-bold">{{ s.name }}</div>
@@ -30,11 +46,24 @@
         </div>
 
         <div class="col-md-6">
-            <h4>Removed</h4>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4>Removed</h4>
+                <div class="btn-group btn-group-sm gap-1 rounded" role="group">
+                    <button class="btn btn-outline-primary rounded" id="select-all-removed">Select All</button>
+                    <button class="btn btn-success rounded" id="move-removed-to-kept" disabled>Move to Kept</button>
+                </div>
+            </div>
             {% if removed %}
                 <ul id="removed-list" class="list-group list-group-dark">
                 {% for s in removed %}
-                    <li class="list-group-item d-flex align-items-center removed-item" data-track-uri="{{ s.track_uri }}">
+                    <li class="list-group-item d-flex align-items-center removed-item" 
+                        data-track-uri="{{ s.track_uri }}"
+                        data-name="{{ s.name }}"
+                        data-artists="{{ s.artists|join:', ' }}"
+                        data-image="{{ s.image_url }}"
+                        data-preview="{{ s.preview_url }}"
+                        data-spotify="{{ s.spotify_url }}">
+                        <input type="checkbox" class="form-check-input me-2 removed-checkbox" data-track-uri="{{ s.track_uri }}">
                         <img src="{{ s.image_url|default:'/static/img/placeholder.png' }}" alt="cover" style="width:56px; height:56px; object-fit:cover; margin-right:12px;"/>
                         <div>
                             <div class="fw-bold">{{ s.name }}</div>
@@ -42,7 +71,6 @@
                         </div>
                         <div class="ms-auto d-flex align-items-center gap-2">
                             <a href="{{ s.spotify_url }}" class="btn btn-outline-spotify btn-sm btn-pill">Open</a>
-                            <button class="btn btn-spotify btn-sm btn-pill reconsider-btn" data-track-uri="{{ s.track_uri }}">Move to Kept</button>
                         </div>
                     </li>
                 {% endfor %}
@@ -58,33 +86,99 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const removedList = document.getElementById('removed-list');
-    let keptList = document.getElementById('kept-list');
-
-    // helper to read CSRF token from cookie
+    // Helper to read CSRF token from cookie
     function getCookie(name) {
         const value = `; ${document.cookie}`;
         const parts = value.split(`; ${name}=`);
         if (parts.length === 2) return parts.pop().split(';').shift();
     }
 
-    // use event delegation on removed-list so dynamically moved items still work
-    if (removedList) {
-        removedList.addEventListener('click', async (ev) => {
-            const btn = ev.target.closest('.reconsider-btn');
-            if (!btn) return;
+    // Select All functionality
+    const selectAllKept = document.getElementById('select-all-kept');
+    const selectAllRemoved = document.getElementById('select-all-removed');
+    const moveKeptToRemoved = document.getElementById('move-kept-to-removed');
+    const moveRemovedToKept = document.getElementById('move-removed-to-kept');
 
-            ev.preventDefault();
-            const li = btn.closest('.removed-item');
-            const trackUri = btn.dataset.trackUri || btn.getAttribute('data-track-uri');
-            const payload = { playlist_id: '{{ playlist_id }}', track_uri: trackUri };
+    function updateButtonStates() {
+        const keptChecked = document.querySelectorAll('.kept-checkbox:checked').length;
+        const removedChecked = document.querySelectorAll('.removed-checkbox:checked').length;
+        
+        moveKeptToRemoved.disabled = keptChecked === 0;
+        moveRemovedToKept.disabled = removedChecked === 0;
+    }
 
-            // disable button while in-flight
-            btn.disabled = true;
-            btn.textContent = 'Working...';
+    // Select all kept songs
+    if (selectAllKept) {
+        selectAllKept.addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('.kept-checkbox');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+            selectAllKept.textContent = allChecked ? 'Select All' : 'Deselect All';
+            updateButtonStates();
+        });
+    }
 
-            try {
-                const resp = await fetch("{% url 'playlists.reconsider_decision' %}", {
+    // Select all removed songs
+    if (selectAllRemoved) {
+        selectAllRemoved.addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('.removed-checkbox');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+            selectAllRemoved.textContent = allChecked ? 'Select All' : 'Deselect All';
+            updateButtonStates();
+        });
+    }
+
+    // Update button states when checkboxes change
+    document.addEventListener('change', (e) => {
+        if (e.target.matches('.kept-checkbox') || e.target.matches('.removed-checkbox')) {
+            updateButtonStates();
+        }
+    });
+
+    // Move kept songs to removed
+    if (moveKeptToRemoved) {
+        moveKeptToRemoved.addEventListener('click', async () => {
+            const checked = document.querySelectorAll('.kept-checkbox:checked');
+            if (checked.length === 0) return;
+
+            const trackUris = Array.from(checked).map(cb => cb.dataset.trackUri);
+            await bulkMoveSongs(trackUris, false, checked);
+        });
+    }
+
+    // Move removed songs to kept
+    if (moveRemovedToKept) {
+        moveRemovedToKept.addEventListener('click', async () => {
+            const checked = document.querySelectorAll('.removed-checkbox:checked');
+            if (checked.length === 0) return;
+
+            const trackUris = Array.from(checked).map(cb => cb.dataset.trackUri);
+            await bulkMoveSongs(trackUris, true, checked);
+        });
+    }
+
+    async function bulkMoveSongs(trackUris, toKept, checkboxElements) {
+        // Disable buttons during operation
+        moveKeptToRemoved.disabled = true;
+        moveRemovedToKept.disabled = true;
+
+        try {
+            // Update each song in the database
+            for (const trackUri of trackUris) {
+                const li = document.querySelector(`li[data-track-uri="${trackUri}"]`);
+                const payload = {
+                    playlist_id: '{{ playlist_id }}',
+                    track_uri: trackUri,
+                    name: li.dataset.name,
+                    artists: li.dataset.artists ? li.dataset.artists.split(',').map(s => s.trim()) : [],
+                    image_url: li.dataset.image,
+                    preview_url: li.dataset.preview,
+                    spotify_url: li.dataset.spotify,
+                    kept: toKept
+                };
+
+                const resp = await fetch("{% url 'playlists.save_decision' %}", {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -93,73 +187,103 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify(payload)
                 });
 
-                const data = await resp.json().catch(() => ({}));
                 if (!resp.ok) {
-                    console.error('reconsider failed', resp.status, data);
-                    throw new Error('reconsider failed');
+                    throw new Error('Failed to update song');
                 }
+            }
 
-                // move DOM node from removed-list to kept-list
-                if (li) {
-                    const removedUl = li.parentNode;
-                    // Prepare kept list container
-                    let keptUl = document.getElementById('kept-list');
-                    if (!keptUl) {
-                        // Create UL in the left column if it doesn't exist
-                        const keptCol = document.querySelectorAll('.row > .col-md-6')[0];
-                        if (keptCol) {
-                            // remove any placeholder paragraph
-                            const p = keptCol.querySelector('p.text-muted');
-                            if (p) p.remove();
-                            keptUl = document.createElement('ul');
-                            keptUl.id = 'kept-list';
-                            keptUl.className = 'list-group list-group-dark';
-                            keptCol.appendChild(keptUl);
-                        }
-                    }
-
-                    // Adjust li classes and actions
+            // Move songs in the UI
+            checkboxElements.forEach(checkbox => {
+                const li = checkbox.closest('li');
+                const trackUri = checkbox.dataset.trackUri;
+                
+                if (toKept) {
+                    // Move from removed to kept
                     li.classList.remove('removed-item');
                     li.classList.add('kept-item');
-                    const actions = li.querySelector('.ms-auto');
-                    if (actions) {
-                        // Remove reconsider button
-                        const reconsider = actions.querySelector('.reconsider-btn');
-                        if (reconsider) reconsider.remove();
-                        // Ensure Open button uses theme
-                        const openBtn = actions.querySelector('a.btn');
-                        if (openBtn) openBtn.className = 'btn btn-outline-spotify btn-sm btn-pill';
+                    checkbox.classList.remove('removed-checkbox');
+                    checkbox.classList.add('kept-checkbox');
+                    checkbox.checked = false;
+                    
+                    const keptList = document.getElementById('kept-list');
+                    if (keptList) {
+                        keptList.appendChild(li);
+                    } else {
+                        // Create kept list if it doesn't exist
+                        const keptCol = document.querySelectorAll('.row > .col-md-6')[0];
+                        const placeholder = keptCol.querySelector('p.text-muted');
+                        if (placeholder) placeholder.remove();
+                        
+                        const newKeptList = document.createElement('ul');
+                        newKeptList.id = 'kept-list';
+                        newKeptList.className = 'list-group list-group-dark';
+                        newKeptList.appendChild(li);
+                        keptCol.appendChild(newKeptList);
                     }
-
-                    keptUl && keptUl.appendChild(li);
-
-                    // if removed list is empty now, show placeholder in removed column
-                    if (removedUl && removedUl.children.length === 0) {
+                } else {
+                    // Move from kept to removed
+                    li.classList.remove('kept-item');
+                    li.classList.add('removed-item');
+                    checkbox.classList.remove('kept-checkbox');
+                    checkbox.classList.add('removed-checkbox');
+                    checkbox.checked = false;
+                    
+                    const removedList = document.getElementById('removed-list');
+                    if (removedList) {
+                        removedList.appendChild(li);
+                    } else {
+                        // Create removed list if it doesn't exist
                         const removedCol = document.querySelectorAll('.row > .col-md-6')[1];
-                        if (removedCol) {
-                            removedUl.remove();
-                            const placeholder = document.createElement('p');
-                            placeholder.className = 'text-muted';
-                            placeholder.textContent = 'No songs marked as removed yet.';
-                            removedCol.appendChild(placeholder);
-                        }
+                        const placeholder = removedCol.querySelector('p.text-muted');
+                        if (placeholder) placeholder.remove();
+                        
+                        const newRemovedList = document.createElement('ul');
+                        newRemovedList.id = 'removed-list';
+                        newRemovedList.className = 'list-group list-group-dark';
+                        newRemovedList.appendChild(li);
+                        removedCol.appendChild(newRemovedList);
                     }
                 }
+            });
 
-                // Optionally show a small success indicator
-                // alert('Song returned to unedited pool');
-
-            } catch (err) {
-                console.error('Failed to reconsider removed track', err);
-                alert('Could not move song to Kept — try again.');
-                btn.disabled = false;
-                btn.textContent = 'Move to Kept';
+            // Check if lists are empty and add placeholders
+            const keptList = document.getElementById('kept-list');
+            const removedList = document.getElementById('removed-list');
+            
+            if (keptList && keptList.children.length === 0) {
+                const keptCol = document.querySelectorAll('.row > .col-md-6')[0];
+                keptList.remove();
+                const placeholder = document.createElement('p');
+                placeholder.className = 'text-muted';
+                placeholder.textContent = 'No songs marked as kept yet.';
+                keptCol.appendChild(placeholder);
             }
-        });
+            
+            if (removedList && removedList.children.length === 0) {
+                const removedCol = document.querySelectorAll('.row > .col-md-6')[1];
+                removedList.remove();
+                const placeholder = document.createElement('p');
+                placeholder.className = 'text-muted';
+                placeholder.textContent = 'No songs marked as removed yet.';
+                removedCol.appendChild(placeholder);
+            }
+
+            // Reset select all buttons
+            if (selectAllKept) selectAllKept.textContent = 'Select All';
+            if (selectAllRemoved) selectAllRemoved.textContent = 'Select All';
+            
+        } catch (err) {
+            console.error('Failed to move songs', err);
+            alert('Failed to move songs. Please try again.');
+        } finally {
+            updateButtonStates();
+        }
     }
 });
 </script>
 <style>
-/* legacy kept-action-btn styles removed; using theme buttons */
+.form-check-input {
+    cursor: pointer;
+}
 </style>
 {% endblock %}

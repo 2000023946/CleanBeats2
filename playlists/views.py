@@ -81,10 +81,26 @@ def render_edit(request, playlist_id=None):
         else:
             return render(request, "playlists/edit.html", {"songs": [], "playlist_name": "", "playlist_id": ""})
 
+    # Check if user wants to reset progress
+    show_all = request.GET.get('show_all', 'false').lower() == 'true'
+    
+    if show_all:
+        # Reset mode: delete all kept songs from database (make them unprocessed)
+        try:
+            KeptSong.objects.filter(
+                user=request.user, 
+                playlist_id=playlist["id"], 
+                kept=True
+            ).delete()
+        except Exception:
+            pass
+        # Redirect to same page without show_all parameter to show fresh start
+        from django.urls import reverse
+        return redirect(reverse('playlists.edit_by_id', kwargs={'playlist_id': playlist["id"]}))
+
     songs = get_playlist_tracks_with_previews(request.user, playlist["id"])
 
-    # Exclude only tracks the user explicitly removed (kept==False).
-    # Kept songs should remain in the edit stack so users can re-edit them.
+    # Always exclude removed songs (kept==False)
     try:
         removed_uris = set(
             KeptSong.objects.filter(user=request.user, playlist_id=playlist["id"], kept=False)
@@ -93,13 +109,40 @@ def render_edit(request, playlist_id=None):
     except Exception:
         removed_uris = set()
 
-    filtered_songs = [s for s in songs if s.get("track_uri") not in removed_uris]
+    # Exclude kept songs by default so user progresses through playlist
+    try:
+        kept_uris = set(
+            KeptSong.objects.filter(user=request.user, playlist_id=playlist["id"], kept=True)
+            .values_list("track_uri", flat=True)
+        )
+        excluded_uris = removed_uris | kept_uris
+    except Exception:
+        excluded_uris = removed_uris
+
+    filtered_songs = [s for s in songs if s.get("track_uri") not in excluded_uris]
+
+    # Calculate progress
+    # Total = all songs in playlist minus permanently removed songs
+    total_count = len(songs) - len(removed_uris)
+    # Processed = current position (how many songs have been processed in this session)
+    # This is: total songs that should be shown minus songs still remaining to process
+    processed_count = total_count - len(filtered_songs)
+    
+    # Check if playlist had any songs to begin with
+    has_songs_in_playlist = len(songs) > 0
 
     # send playlist id and name to the template
     return render(
         request,
         "playlists/edit.html",
-        {"songs": filtered_songs, "playlist_name": playlist.get("name", ""), "playlist_id": playlist["id"]},
+        {
+            "songs": filtered_songs, 
+            "playlist_name": playlist.get("name", ""), 
+            "playlist_id": playlist["id"],
+            "total_count": total_count,
+            "processed_count": processed_count,
+            "has_songs_in_playlist": has_songs_in_playlist,
+        },
     )
 
 
@@ -217,20 +260,21 @@ def get_playlist_tracks_with_previews(user, playlist_id):
 
     for item in raw_tracks:
         track = item["track"]
-        track_id = track["id"]
-        track_info = get_track_info(user, track_id)
+        if not track:  # Skip if track is None (deleted/unavailable)
+            continue
+            
         tracks_with_preview.append(
             {
-                "name": track_info["name"],
+                "name": track.get("name"),
                 "image_url": (
-                    track_info["album"]["images"][0]["url"]
-                    if track_info["album"]["images"]
+                    track["album"]["images"][0]["url"]
+                    if track.get("album") and track["album"].get("images")
                     else None
                 ),
-                "preview_url": track_info.get("preview_url"),
-                "spotify_url": track_info["external_urls"]["spotify"],
-                "artists": [artist["name"] for artist in track_info["artists"]],
-                "track_uri": track_info.get("uri"),
+                "preview_url": track.get("preview_url"),
+                "spotify_url": track.get("external_urls", {}).get("spotify"),
+                "artists": [artist["name"] for artist in track.get("artists", [])],
+                "track_uri": track.get("uri"),
             }
         )
 
