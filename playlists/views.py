@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from accounts.spotify import get_user_playlists, get_playlist_tracks, get_track_info, get_playlist
+from accounts.spotify import get_user_playlists, get_playlist_tracks, get_track_info, get_playlist, remove_tracks_from_playlist
 import requests
 import requests
 from django.views.decorators.csrf import csrf_exempt
@@ -222,6 +222,53 @@ def kept_view(request, playlist_id):
     ]
 
     return render(request, "playlists/kept.html", {"kept": kept, "removed": removed, "playlist_id": playlist_id})
+
+
+@login_required
+@require_POST
+def apply_playlist_changes(request, playlist_id):
+    """Remove all 'removed' songs from the actual Spotify playlist and clear them from database."""
+    try:
+        # Get all removed songs for this user and playlist
+        removed_songs = KeptSong.objects.filter(
+            user=request.user,
+            playlist_id=playlist_id,
+            kept=False
+        )
+        
+        if not removed_songs.exists():
+            return JsonResponse({
+                'status': 'success',
+                'message': 'No songs to remove.',
+                'count': 0
+            })
+        
+        # Extract track URIs
+        track_uris = [song.track_uri for song in removed_songs]
+        count = len(track_uris)
+        
+        # Remove tracks from Spotify playlist
+        remove_tracks_from_playlist(request.user, playlist_id, track_uris)
+        
+        # Delete removed songs from database
+        removed_songs.delete()
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Successfully removed {count} song{"s" if count != 1 else ""} from your Spotify playlist!',
+            'count': count
+        })
+        
+    except requests.RequestException as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Failed to update Spotify playlist: {str(e)}'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'An error occurred: {str(e)}'
+        }, status=500)
 
 
 @login_required

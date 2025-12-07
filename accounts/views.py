@@ -59,7 +59,7 @@ def signup(request):
 @login_required
 def connect_spotify(request):
     """Redirect the logged-in user to Spotify's authorization page."""
-    scopes = "playlist-read-private playlist-read-collaborative"
+    scopes = "playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public"
 
     # CSRF protection via state parameter
     state = secrets.token_urlsafe(16)

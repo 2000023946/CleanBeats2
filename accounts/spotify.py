@@ -105,6 +105,37 @@ def get_playlist(user, playlist_id):
     return r.json()
 
 
+def remove_tracks_from_playlist(user, playlist_id, track_uris):
+    """Remove tracks from a Spotify playlist.
+    
+    Args:
+        user: The Django user object
+        playlist_id: Spotify playlist ID
+        track_uris: List of Spotify track URIs to remove
+    
+    Returns:
+        Response from Spotify API
+    """
+    st = SpotifyToken.objects.get(user=user)
+    if st.is_expired():
+        st = refresh_spotify_token_for_user(user)
+    
+    headers = {
+        "Authorization": f"Bearer {st.access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    url = f"{API_BASE}/playlists/{playlist_id}/tracks"
+    
+    # Spotify expects tracks in this format
+    tracks_payload = [{"uri": uri} for uri in track_uris]
+    payload = {"tracks": tracks_payload}
+    
+    r = requests.delete(url, headers=headers, json=payload)
+    r.raise_for_status()
+    return r.json()
+
+
 # views.py
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
