@@ -105,6 +105,165 @@ def get_playlist(user, playlist_id):
     return r.json()
 
 
+# Spotify's official "Top 50" playlist IDs by country code (some may be outdated)
+SPOTIFY_TOP50_PLAYLISTS = {
+    'US': '37i9dQZEVXbLRQDuF5jeBp',
+    'GB': '37i9dQZEVXbLnolsZ8PSNw',
+    'CA': '37i9dQZEVXbKj23U1GF4IR',
+    'AU': '37i9dQZEVXbJPcfkRz0wJ0',
+    'DE': '37i9dQZEVXbJiZcmkrIHGU',
+    'FR': '37i9dQZEVXbIPWwFssbupI',
+    'ES': '37i9dQZEVXbNFJfN1Vw8d9',
+    'IT': '37i9dQZEVXbIQnj7RRhdSX',
+    'BR': '37i9dQZEVXbMXbN3EUUhlg',
+    'MX': '37i9dQZEVXbO3qyFxbkOE1',
+    'JP': '37i9dQZEVXbKXQ4mDTEBXq',
+    'GLOBAL': '37i9dQZEVXbMDoHDwVN2tF',
+}
+
+
+def get_top_charts_for_country(user, country_code: str):
+    """
+    Fetch top artists from Spotify's Top 50 playlist for a given country.
+    Uses Spotify's search API to find chart playlists.
+    Returns a list of top artists with their track counts.
+    """
+    country_code = country_code.upper()
+    
+    st = SpotifyToken.objects.get(user=user)
+    if st.is_expired():
+        st = refresh_spotify_token_for_user(user)
+    
+    headers = {"Authorization": f"Bearer {st.access_token}"}
+    
+    country_names = {
+        'US': 'USA', 'GB': 'UK', 'CA': 'Canada', 'AU': 'Australia',
+        'DE': 'Germany', 'FR': 'France', 'ES': 'Spain', 'IT': 'Italy',
+        'BR': 'Brazil', 'MX': 'Mexico', 'JP': 'Japan', 'KR': 'South Korea',
+        'IN': 'India', 'AR': 'Argentina', 'NL': 'Netherlands', 'SE': 'Sweden',
+        'NO': 'Norway', 'DK': 'Denmark', 'FI': 'Finland', 'PL': 'Poland',
+        'PT': 'Portugal', 'IE': 'Ireland', 'NZ': 'New Zealand', 'ZA': 'South Africa',
+        'PH': 'Philippines', 'ID': 'Indonesia', 'TH': 'Thailand', 'TR': 'Turkey',
+        'UA': 'Ukraine', 'RO': 'Romania', 'HU': 'Hungary', 'CZ': 'Czechia',
+        'GR': 'Greece', 'IL': 'Israel', 'EG': 'Egypt', 'SA': 'Saudi Arabia',
+        'AE': 'UAE', 'CH': 'Switzerland', 'AT': 'Austria', 'BE': 'Belgium',
+        'CL': 'Chile', 'CO': 'Colombia', 'PE': 'Peru', 'VE': 'Venezuela',
+    }
+    
+    country_name = country_names.get(country_code, '')
+    playlist_id = SPOTIFY_TOP50_PLAYLISTS.get(country_code)
+    found_playlist_id = None
+    
+    # If we have a known playlist ID, try it first
+    if playlist_id:
+        url = f"{API_BASE}/playlists/{playlist_id}/tracks?limit=50"
+        r = requests.get(url, headers=headers)
+        if r.status_code == 200:
+            data = r.json()
+            items = data.get('items', [])
+            if items:
+                return _parse_playlist_artists(data, country_code, True)
+    
+    # Fallback: Search for the playlist
+    if country_name:
+        search_query = f"Top 50 {country_name}"
+        search_url = f"{API_BASE}/search?q={requests.utils.quote(search_query)}&type=playlist&limit=10"
+        r = requests.get(search_url, headers=headers)
+        
+        if r.status_code == 200:
+            search_data = r.json()
+            playlists = search_data.get('playlists', {}).get('items', [])
+            
+            for pl in playlists:
+                if pl is None:
+                    continue
+                pl_name = (pl.get('name', '') or '').lower()
+                track_count = pl.get('tracks', {}).get('total', 0) if pl.get('tracks') else 0
+                
+                if ('top' in pl_name or 'chart' in pl_name or 'hits' in pl_name) and track_count >= 20:
+                    found_playlist_id = pl.get('id')
+                    break
+            
+            if found_playlist_id:
+                url = f"{API_BASE}/playlists/{found_playlist_id}/tracks?limit=50"
+                r = requests.get(url, headers=headers)
+                if r.status_code == 200:
+                    data = r.json()
+                    return _parse_playlist_artists(data, country_code, True)
+    
+    # Try additional search terms
+    if country_name:
+        for search_term in [f"{country_name} top hits", f"{country_name} charts 2024", f"top songs {country_name}"]:
+            search_url = f"{API_BASE}/search?q={requests.utils.quote(search_term)}&type=playlist&limit=5"
+            r = requests.get(search_url, headers=headers)
+            
+            if r.status_code == 200:
+                search_data = r.json()
+                playlists = search_data.get('playlists', {}).get('items', [])
+                
+                for pl in playlists:
+                    if pl is None:
+                        continue
+                    track_count = pl.get('tracks', {}).get('total', 0) if pl.get('tracks') else 0
+                    if track_count >= 20:
+                        found_playlist_id = pl.get('id')
+                        break
+                
+                if found_playlist_id:
+                    url = f"{API_BASE}/playlists/{found_playlist_id}/tracks?limit=50"
+                    r = requests.get(url, headers=headers)
+                    if r.status_code == 200:
+                        data = r.json()
+                        return _parse_playlist_artists(data, country_code, True)
+                    break
+    
+    # Final fallback: Global Top 50
+    global_id = SPOTIFY_TOP50_PLAYLISTS.get('GLOBAL', '37i9dQZEVXbMDoHDwVN2tF')
+    url = f"{API_BASE}/playlists/{global_id}/tracks?limit=50"
+    r = requests.get(url, headers=headers)
+    
+    if r.status_code == 200:
+        data = r.json()
+        items = data.get('items', [])
+        if items:
+            return _parse_playlist_artists(data, country_code, False)
+    
+    return {
+        'country_code': country_code,
+        'has_chart': False,
+        'artists': [],
+        'error': 'Could not fetch charts'
+    }
+
+
+def _parse_playlist_artists(data, country_code, has_chart):
+    """Parse playlist tracks and count artist appearances."""
+    artist_counts = {}
+    
+    for item in data.get('items', []):
+        track = item.get('track')
+        if not track:
+            continue
+        
+        for artist in track.get('artists', []):
+            name = artist.get('name')
+            if name:
+                artist_counts[name] = artist_counts.get(name, 0) + 1
+    
+    top_artists = sorted(artist_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+    
+    return {
+        'country_code': country_code,
+        'has_chart': has_chart,
+        'artists': [{'name': name, 'count': count} for name, count in top_artists]
+    }
+
+
+def get_available_chart_countries():
+    """Return list of country codes that have Top 50 charts available."""
+    return list(SPOTIFY_TOP50_PLAYLISTS.keys())
+
+
 def remove_tracks_from_playlist(user, playlist_id, track_uris):
     """Remove tracks from a Spotify playlist.
     
