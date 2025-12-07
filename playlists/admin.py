@@ -2,16 +2,28 @@ from django.contrib import admin
 from django.http import HttpResponse
 import csv
 from .models import KeptSong
+from accounts.spotify import get_playlist
 
 
 @admin.register(KeptSong)
 class KeptSongAdmin(admin.ModelAdmin):
-    list_display = ('user', 'playlist_id', 'name', 'get_artists', 'kept', 'created_at')
+    list_display = ('user', 'get_playlist_name', 'name', 'get_artists', 'kept', 'created_at')
     list_filter = ('kept', 'created_at', 'user')
     search_fields = ('user__username', 'playlist_id', 'name', 'artists')
     list_per_page = 25
     ordering = ('-created_at',)
     actions = ['export_as_csv']
+    
+    def get_playlist_name(self, obj):
+        """Fetch and display the playlist name from Spotify"""
+        try:
+            playlist_data = get_playlist(obj.user, obj.playlist_id)
+            return playlist_data.get('name', obj.playlist_id)
+        except Exception as e:
+            # If we can't fetch the playlist name, fall back to the ID
+            return f"{obj.playlist_id[:20]}..."
+    
+    get_playlist_name.short_description = 'Playlist'
     
     def get_artists(self, obj):
         """Display artists in a readable format"""
