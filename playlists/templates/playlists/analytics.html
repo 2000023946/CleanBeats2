@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container my-5">
+    <h2 class="mb-4 text-center">Music Analytics</h2>
+
+    {% if error_message %}
+        <div class="alert alert-danger">{{ error_message }}</div>
+    {% endif %}
+
+    <!-- Overall Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-dark border-secondary">
+                <div class="card-body text-center">
+                    <h6 class="text-white-50">Total Playlists</h6>
+                    <h2 class="text-spotify">{{ stats.total_playlists }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-dark border-secondary">
+                <div class="card-body text-center">
+                    <h6 class="text-white-50">Total Tracks</h6>
+                    <h2 class="text-spotify">{{ stats.total_tracks }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-dark border-secondary">
+                <div class="card-body text-center">
+                    <h6 class="text-white-50">Total Listening Time</h6>
+                    <h2 class="text-spotify">{{ stats.total_hours }}h {{ stats.total_minutes }}m</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-dark border-secondary">
+                <div class="card-body text-center">
+                    <h6 class="text-white-50">Unique Artists</h6>
+                    <h2 class="text-spotify">{{ stats.unique_artists }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Genre Distribution -->
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Genre Distribution</h5>
+            <a href="{% url 'playlists.export_csv' section='genres' %}" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-download"></i> Export CSV
+            </a>
+        </div>
+        <div class="card-body">
+            {% if genre_data %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Genre</th>
+                                <th>Count</th>
+                                <th>Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for genre in genre_data %}
+                            <tr>
+                                <td>{{ genre.name }}</td>
+                                <td>{{ genre.count }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                            <div class="progress-bar bg-spotify" role="progressbar" 
+                                                 style="width: {{ genre.percentage }}%;" 
+                                                 aria-valuenow="{{ genre.percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <span class="text-white-50">{{ genre.percentage }}%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-white-50">No genre data available</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Largest Playlists -->
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Largest Playlists</h5>
+            <a href="{% url 'playlists.export_csv' section='playlists' %}" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-download"></i> Export CSV
+            </a>
+        </div>
+        <div class="card-body">
+            {% if largest_playlists %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Playlist Name</th>
+                                <th>Tracks</th>
+                                <th>Owner</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for playlist in largest_playlists %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'playlists.edit_by_id' playlist_id=playlist.id %}" class="text-spotify text-decoration-none">
+                                        {{ playlist.name }}
+                                    </a>
+                                </td>
+                                <td>{{ playlist.track_count }}</td>
+                                <td class="text-white-50">{{ playlist.owner }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-white-50">No playlist data available</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Most Popular Tracks -->
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Most Popular Tracks</h5>
+            <a href="{% url 'playlists.export_csv' section='popular' %}" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-download"></i> Export CSV
+            </a>
+        </div>
+        <div class="card-body">
+            {% if popular_tracks %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Track</th>
+                                <th>Artist</th>
+                                <th>Spotify Popularity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for track in popular_tracks %}
+                            <tr>
+                                <td>{{ track.name }}</td>
+                                <td class="text-white-50">{{ track.artist }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="progress flex-grow-1 me-2" style="height: 20px; max-width: 150px;">
+                                            <div class="progress-bar bg-success" role="progressbar" 
+                                                 style="width: {{ track.popularity }}%;" 
+                                                 aria-valuenow="{{ track.popularity }}" aria-valuemin="0" aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <span class="text-white-50">{{ track.popularity }}</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-white-50">No track data available</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Release Year Distribution -->
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Release Year Distribution</h5>
+            <a href="{% url 'playlists.export_csv' section='years' %}" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-download"></i> Export CSV
+            </a>
+        </div>
+        <div class="card-body">
+            {% if year_data %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Decade</th>
+                                <th>Count</th>
+                                <th>Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for decade in year_data %}
+                            <tr>
+                                <td>{{ decade.label }}</td>
+                                <td>{{ decade.count }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                            <div class="progress-bar bg-info" role="progressbar" 
+                                                 style="width: {{ decade.percentage }}%;" 
+                                                 aria-valuenow="{{ decade.percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <span class="text-white-50">{{ decade.percentage }}%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-white-50">No release year data available</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Decision History -->
+    <div class="card bg-dark border-secondary mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Decision History</h5>
+            <a href="{% url 'playlists.export_csv' section='decisions' %}" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-download"></i> Export CSV
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="card bg-dark border-success">
+                        <div class="card-body text-center">
+                            <h6 class="text-white-50">Kept Songs</h6>
+                            <h3 class="text-white">{{ decision_stats.kept_count }}</h3>
+                            <small class="text-success">{{ decision_stats.kept_percentage }}%</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-dark border-danger">
+                        <div class="card-body text-center">
+                            <h6 class="text-white-50">Removed Songs</h6>
+                            <h3 class="text-white">{{ decision_stats.removed_count }}</h3>
+                            <small class="text-danger">{{ decision_stats.removed_percentage }}%</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% if recent_decisions %}
+                <h6 class="text-white-50 mb-3">Recent Decisions</h6>
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Track</th>
+                                <th>Artist</th>
+                                <th>Decision</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for decision in recent_decisions %}
+                            <tr>
+                                <td>{{ decision.name }}</td>
+                                <td class="text-white-50">{{ decision.artist }}</td>
+                                <td>
+                                    {% if decision.kept %}
+                                        <span class="badge bg-success">Kept</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Removed</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-white-50">{{ decision.date }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-white-50 mt-3">No decisions recorded yet. Start editing your playlists!</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.bg-spotify {
+    background-color: #1DB954 !important;
+}
+.text-spotify {
+    color: #1DB954 !important;
+}
+.progress {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+</style>
+{% endblock %}

@@ -4,7 +4,7 @@ from accounts.spotify import get_user_playlists, get_playlist_tracks, get_track_
 import requests
 import requests
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 import json
 from .models import KeptSong
 from django.views.decorators.http import require_POST
@@ -1733,3 +1733,300 @@ def get_playlist_tracks_with_previews(user, playlist_id):
         "video_thumbnail": {"url": None},
     },
 ]
+
+
+@login_required
+def analytics_dashboard(request):
+    """Display comprehensive music analytics."""
+    from collections import Counter, defaultdict
+    from datetime import datetime
+    
+    try:
+        # Get all playlists
+        data = get_user_playlists(request.user)
+        playlists = data.get("items", [])
+        
+        # Initialize counters
+        total_tracks = 0
+        total_duration_ms = 0
+        all_artists = []
+        all_genres = []
+        release_years = []
+        popular_tracks = []
+        
+        # Get all tracks from all playlists
+        for playlist in playlists:
+            try:
+                tracks = get_playlist_tracks(request.user, playlist['id'])
+                for item in tracks:
+                    track = item.get('track')
+                    if not track:
+                        continue
+                    
+                    total_tracks += 1
+                    
+                    # Duration
+                    duration = track.get('duration_ms', 0)
+                    total_duration_ms += duration
+                    
+                    # Artists
+                    artists = track.get('artists', [])
+                    for artist in artists:
+                        all_artists.append(artist.get('name', 'Unknown'))
+                    
+                    # Release year
+                    album = track.get('album', {})
+                    release_date = album.get('release_date', '')
+                    if release_date:
+                        try:
+                            year = int(release_date.split('-')[0])
+                            release_years.append(year)
+                        except (ValueError, IndexError):
+                            pass
+                    
+                    # Popular tracks
+                    popularity = track.get('popularity', 0)
+                    if popularity > 0:
+                        artist_names = ', '.join([a.get('name', 'Unknown') for a in artists])
+                        popular_tracks.append({
+                            'name': track.get('name', 'Unknown'),
+                            'artist': artist_names,
+                            'popularity': popularity
+                        })
+            except Exception as e:
+                continue
+        
+        # Calculate stats
+        total_hours = total_duration_ms // (1000 * 60 * 60)
+        total_minutes = (total_duration_ms % (1000 * 60 * 60)) // (1000 * 60)
+        
+        # Genre distribution (fetch from artist data if available)
+        # For now, we'll use top artists as a proxy
+        artist_counts = Counter(all_artists)
+        top_artists = artist_counts.most_common(20)
+        
+        # Simulate genre data (in production, you'd fetch actual genre from artist API)
+        genre_data = []
+        total_artist_count = sum(artist_counts.values())
+        for artist, count in top_artists[:10]:
+            if total_artist_count > 0:
+                percentage = round((count / total_artist_count) * 100, 1)
+                genre_data.append({
+                    'name': artist,  # Using artist as genre proxy
+                    'count': count,
+                    'percentage': percentage
+                })
+        
+        # Largest playlists
+        largest_playlists = sorted(
+            [{'name': p['name'], 'track_count': p['tracks']['total'], 
+              'owner': p['owner'].get('display_name', 'Unknown'), 'id': p['id']} 
+             for p in playlists],
+            key=lambda x: x['track_count'],
+            reverse=True
+        )[:10]
+        
+        # Most popular tracks
+        popular_tracks = sorted(popular_tracks, key=lambda x: x['popularity'], reverse=True)[:15]
+        
+        # Release year distribution (by decade)
+        year_counter = Counter()
+        for year in release_years:
+            decade = (year // 10) * 10
+            year_counter[decade] += 1
+        
+        total_years = sum(year_counter.values())
+        year_data = []
+        for decade in sorted(year_counter.keys(), reverse=True):
+            count = year_counter[decade]
+            percentage = round((count / total_years) * 100, 1) if total_years > 0 else 0
+            year_data.append({
+                'label': f"{decade}s",
+                'count': count,
+                'percentage': percentage
+            })
+        
+        # Decision history from KeptSong model
+        decisions = KeptSong.objects.filter(user=request.user).order_by('-created_at')
+        kept_count = decisions.filter(kept=True).count()
+        removed_count = decisions.filter(kept=False).count()
+        total_decisions = kept_count + removed_count
+        
+        kept_percentage = round((kept_count / total_decisions) * 100, 1) if total_decisions > 0 else 0
+        removed_percentage = round((removed_count / total_decisions) * 100, 1) if total_decisions > 0 else 0
+        
+        recent_decisions = []
+        for decision in decisions[:20]:
+            artist_list = decision.artists if isinstance(decision.artists, list) else []
+            artist_str = ', '.join([a if isinstance(a, str) else a.get('name', 'Unknown') 
+                                   for a in artist_list]) if artist_list else 'Unknown'
+            
+            recent_decisions.append({
+                'name': decision.name,
+                'artist': artist_str,
+                'kept': decision.kept,
+                'date': decision.created_at.strftime('%Y-%m-%d %H:%M')
+            })
+        
+        context = {
+            'stats': {
+                'total_playlists': len(playlists),
+                'total_tracks': total_tracks,
+                'total_hours': total_hours,
+                'total_minutes': total_minutes,
+                'unique_artists': len(set(all_artists))
+            },
+            'genre_data': genre_data,
+            'largest_playlists': largest_playlists,
+            'popular_tracks': popular_tracks,
+            'year_data': year_data,
+            'decision_stats': {
+                'kept_count': kept_count,
+                'removed_count': removed_count,
+                'kept_percentage': kept_percentage,
+                'removed_percentage': removed_percentage
+            },
+            'recent_decisions': recent_decisions
+        }
+        
+        return render(request, 'playlists/analytics.html', context)
+        
+    except Exception as e:
+        return render(request, 'playlists/analytics.html', {
+            'error_message': f'Failed to load analytics: {str(e)}'
+        })
+
+
+@login_required
+def export_analytics_csv(request, section):
+    """Export analytics data as CSV."""
+    import csv
+    from collections import Counter
+    from datetime import datetime
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="cleanbeats_{section}_{datetime.now().strftime("%Y%m%d")}.csv"'
+    writer = csv.writer(response)
+    
+    try:
+        if section == 'genres':
+            # Export genre/artist distribution
+            data = get_user_playlists(request.user)
+            playlists = data.get("items", [])
+            all_artists = []
+            
+            for playlist in playlists:
+                try:
+                    tracks = get_playlist_tracks(request.user, playlist['id'])
+                    for item in tracks:
+                        track = item.get('track')
+                        if not track:
+                            continue
+                        artists = track.get('artists', [])
+                        for artist in artists:
+                            all_artists.append(artist.get('name', 'Unknown'))
+                except:
+                    continue
+            
+            artist_counts = Counter(all_artists)
+            writer.writerow(['Artist', 'Track Count'])
+            for artist, count in artist_counts.most_common():
+                writer.writerow([artist, count])
+        
+        elif section == 'playlists':
+            # Export playlist data
+            data = get_user_playlists(request.user)
+            playlists = data.get("items", [])
+            
+            writer.writerow(['Playlist Name', 'Track Count', 'Owner'])
+            for p in sorted(playlists, key=lambda x: x['tracks']['total'], reverse=True):
+                writer.writerow([
+                    p['name'],
+                    p['tracks']['total'],
+                    p['owner'].get('display_name', 'Unknown')
+                ])
+        
+        elif section == 'popular':
+            # Export popular tracks
+            data = get_user_playlists(request.user)
+            playlists = data.get("items", [])
+            popular_tracks = []
+            
+            for playlist in playlists:
+                try:
+                    tracks = get_playlist_tracks(request.user, playlist['id'])
+                    for item in tracks:
+                        track = item.get('track')
+                        if not track:
+                            continue
+                        artists = track.get('artists', [])
+                        artist_names = ', '.join([a.get('name', 'Unknown') for a in artists])
+                        popular_tracks.append({
+                            'name': track.get('name', 'Unknown'),
+                            'artist': artist_names,
+                            'popularity': track.get('popularity', 0)
+                        })
+                except:
+                    continue
+            
+            writer.writerow(['Track Name', 'Artist', 'Popularity'])
+            for track in sorted(popular_tracks, key=lambda x: x['popularity'], reverse=True):
+                writer.writerow([track['name'], track['artist'], track['popularity']])
+        
+        elif section == 'years':
+            # Export release year distribution
+            data = get_user_playlists(request.user)
+            playlists = data.get("items", [])
+            release_years = []
+            
+            for playlist in playlists:
+                try:
+                    tracks = get_playlist_tracks(request.user, playlist['id'])
+                    for item in tracks:
+                        track = item.get('track')
+                        if not track:
+                            continue
+                        album = track.get('album', {})
+                        release_date = album.get('release_date', '')
+                        if release_date:
+                            try:
+                                year = int(release_date.split('-')[0])
+                                release_years.append(year)
+                            except (ValueError, IndexError):
+                                pass
+                except:
+                    continue
+            
+            year_counter = Counter()
+            for year in release_years:
+                decade = (year // 10) * 10
+                year_counter[decade] += 1
+            
+            writer.writerow(['Decade', 'Track Count'])
+            for decade in sorted(year_counter.keys(), reverse=True):
+                writer.writerow([f"{decade}s", year_counter[decade]])
+        
+        elif section == 'decisions':
+            # Export decision history
+            decisions = KeptSong.objects.filter(user=request.user).order_by('-created_at')
+            
+            writer.writerow(['Track Name', 'Artist', 'Decision', 'Date', 'Playlist ID'])
+            for decision in decisions:
+                artist_list = decision.artists if isinstance(decision.artists, list) else []
+                artist_str = ', '.join([a if isinstance(a, str) else a.get('name', 'Unknown') 
+                                       for a in artist_list]) if artist_list else 'Unknown'
+                
+                writer.writerow([
+                    decision.name,
+                    artist_str,
+                    'Kept' if decision.kept else 'Removed',
+                    decision.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    decision.playlist_id
+                ])
+        
+        return response
+        
+    except Exception as e:
+        response = HttpResponse(f'Error exporting data: {str(e)}')
+        response.status_code = 500
+        return response
