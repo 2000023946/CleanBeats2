@@ -281,6 +281,26 @@ def refresh_spotify_token_for_user(user):
     return st
 
 
+def _format_retry_after(seconds):
+    """Format retry_after seconds into a human-readable string."""
+    try:
+        seconds = int(seconds)
+    except (ValueError, TypeError):
+        return "unknown time"
+    
+    if seconds >= 3600:  # 1 hour or more
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+        return f"{hours}h {minutes}m {secs}s"
+    elif seconds >= 60:  # 1 minute or more
+        minutes = seconds // 60
+        secs = seconds % 60
+        return f"{minutes}m {secs}s"
+    else:  # less than 1 minute
+        return f"{seconds}s"
+
+
 def get_user_playlists(user):
     st = SpotifyToken.objects.get(user=user)
     if st.is_expired():
@@ -290,9 +310,10 @@ def get_user_playlists(user):
     r = requests.get(url, headers=headers)
     
     if r.status_code == 429:
-        retry_after = int(r.headers.get('Retry-After', 'unknown')) / 60
+        retry_after = r.headers.get('Retry-After', 'unknown')
+        wait_time = _format_retry_after(retry_after)
         raise requests.exceptions.HTTPError(
-            f"Rate limited. Please wait {retry_after:.2f} minutes before trying again.",
+            f"Rate limited. Please wait {wait_time} before trying again.",
             response=r
         )
     
@@ -325,9 +346,10 @@ def get_playlist_tracks(user, playlist_id):
         r = requests.get(url, headers=headers)
         
         if r.status_code == 429:
-            retry_after = int(r.headers.get('Retry-After', 'unknown')) / 60
+            retry_after = r.headers.get('Retry-After', 'unknown')
+            wait_time = _format_retry_after(retry_after)
             raise requests.exceptions.HTTPError(
-                f"Rate limited. Please wait {retry_after:.2f} minutes before trying again.",
+                f"Rate limited. Please wait {wait_time} before trying again.",
                 response=r
             )
         
@@ -364,9 +386,10 @@ def get_playlist(user, playlist_id):
     r = requests.get(url, headers=headers)
     
     if r.status_code == 429:
-        retry_after = int(r.headers.get('Retry-After', 'unknown')) / 60
+        retry_after = r.headers.get('Retry-After', 'unknown')
+        wait_time = _format_retry_after(retry_after)
         raise requests.exceptions.HTTPError(
-            f"Rate limited. Please wait {retry_after:.2f} minutes before trying again.",
+            f"Rate limited. Please wait {wait_time} before trying again.",
             response=r
         )
     

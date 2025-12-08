@@ -3,7 +3,17 @@
 
 {% block content %}
 <div class="container my-5">
-    <h2 class="mb-4 text-center">Music Analytics</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Music Analytics</h2>
+        {% if cache_age_minutes is not None %}
+            <div>
+                <span class="badge bg-info me-2">Cached {{ cache_age_minutes }} min ago</span>
+                <a href="?refresh=1" class="btn btn-sm btn-outline-light">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </a>
+            </div>
+        {% endif %}
+    </div>
 
     {% if error_message %}
         <div class="alert alert-danger">{{ error_message }}</div>

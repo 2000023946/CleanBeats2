@@ -272,6 +272,14 @@ def apply_playlist_changes(request, playlist_id):
         # Mark this playlist as modified so dashboard refreshes its count
         request.session['modified_playlist_id'] = playlist_id
         
+        # Invalidate analytics cache since playlist data changed
+        cache_key = f'analytics_data_{request.user.id}'
+        cache_time_key = f'analytics_cache_time_{request.user.id}'
+        if cache_key in request.session:
+            del request.session[cache_key]
+        if cache_time_key in request.session:
+            del request.session[cache_time_key]
+        
         return JsonResponse({
             'status': 'success',
             'message': f'Successfully removed {count} song{"s" if count != 1 else ""} from your Spotify playlist!',
@@ -1742,6 +1750,25 @@ def analytics_dashboard(request):
     from datetime import datetime
     
     try:
+        # Check for cached analytics data
+        cache_key = f'analytics_data_{request.user.id}'
+        cache_time_key = f'analytics_cache_time_{request.user.id}'
+        
+        # Allow force refresh with ?refresh=1 parameter
+        force_refresh = request.GET.get('refresh') == '1'
+        
+        if not force_refresh:
+            cached_data = request.session.get(cache_key)
+            cached_time = request.session.get(cache_time_key)
+            
+            # Use cache if it exists and is less than 1 hour old (3600 seconds)
+            if cached_data and cached_time:
+                cache_age = datetime.now().timestamp() - cached_time
+                if cache_age < 3600:  # 1 hour cache
+                    # Add cache info to context
+                    cached_data['cache_age_minutes'] = int(cache_age / 60)
+                    return render(request, 'playlists/analytics.html', cached_data)
+        
         # Get all playlists
         data = get_user_playlists(request.user)
         playlists = data.get("items", [])
@@ -1841,6 +1868,10 @@ def analytics_dashboard(request):
             },
             'recent_decisions': recent_decisions
         }
+        
+        # Cache the analytics data for 1 hour
+        request.session[cache_key] = context
+        request.session[cache_time_key] = datetime.now().timestamp()
         
         return render(request, 'playlists/analytics.html', context)
         
