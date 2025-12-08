@@ -45,154 +45,177 @@
         </div>
     </div>
 
-    <!-- Top Artists Distribution -->
+    <!-- Analytics Tabs -->
     <div class="card bg-dark border-secondary mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Top Artists Distribution</h5>
-            <a href="{% url 'playlists.export_csv' section='genres' %}" class="btn btn-sm btn-outline-success">
-                <i class="bi bi-download"></i> Export CSV
-            </a>
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" id="analyticsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="artists-tab" data-bs-toggle="tab" data-bs-target="#artists" 
+                            type="button" role="tab" aria-controls="artists" aria-selected="true">
+                        Top Artists
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="playlists-tab" data-bs-toggle="tab" data-bs-target="#playlists" 
+                            type="button" role="tab" aria-controls="playlists" aria-selected="false">
+                        Largest Playlists
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="decisions-tab" data-bs-toggle="tab" data-bs-target="#decisions" 
+                            type="button" role="tab" aria-controls="decisions" aria-selected="false">
+                        Decision History
+                    </button>
+                </li>
+            </ul>
         </div>
         <div class="card-body">
-            {% if genre_data %}
-                <div class="table-responsive">
-                    <table class="table table-dark table-hover">
-                        <thead>
-                            <tr>
-                                <th>Artist</th>
-                                <th>Count</th>
-                                <th>Percentage</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for genre in genre_data %}
-                            <tr>
-                                <td>{{ genre.name }}</td>
-                                <td>{{ genre.count }}</td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <div class="progress flex-grow-1 me-2" style="height: 20px;">
-                                            <div class="progress-bar bg-spotify" role="progressbar" 
-                                                 style="width: {{ genre.percentage }}%;" 
-                                                 aria-valuenow="{{ genre.percentage }}" aria-valuemin="0" aria-valuemax="100">
+            <div class="tab-content" id="analyticsTabContent">
+                <!-- Top Artists Tab -->
+                <div class="tab-pane fade show active" id="artists" role="tabpanel" aria-labelledby="artists-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="text-white fw-bold mb-0">Top Artists Distribution</h5>
+                        <a href="{% url 'playlists.export_csv' section='genres' %}" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-download"></i> Export CSV
+                        </a>
+                    </div>
+                    {% if genre_data %}
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Artist</th>
+                                        <th>Count</th>
+                                        <th>Percentage</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for genre in genre_data %}
+                                    <tr>
+                                        <td>{{ genre.name }}</td>
+                                        <td>{{ genre.count }}</td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                                    <div class="progress-bar bg-spotify" role="progressbar" 
+                                                         style="width: {{ genre.percentage }}%;" 
+                                                         aria-valuenow="{{ genre.percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                                    </div>
+                                                </div>
+                                                <span class="text-white-50">{{ genre.percentage }}%</span>
                                             </div>
-                                        </div>
-                                        <span class="text-white-50">{{ genre.percentage }}%</span>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-white-50">No artist data available</p>
+                    {% endif %}
                 </div>
-            {% else %}
-                <p class="text-white-50">No genre data available</p>
-            {% endif %}
-        </div>
-    </div>
 
-    <!-- Largest Playlists -->
-    <div class="card bg-dark border-secondary mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Largest Playlists</h5>
-            <a href="{% url 'playlists.export_csv' section='playlists' %}" class="btn btn-sm btn-outline-success">
-                <i class="bi bi-download"></i> Export CSV
-            </a>
-        </div>
-        <div class="card-body">
-            {% if largest_playlists %}
-                <div class="table-responsive">
-                    <table class="table table-dark table-hover">
-                        <thead>
-                            <tr>
-                                <th>Playlist Name</th>
-                                <th>Tracks</th>
-                                <th>Owner</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for playlist in largest_playlists %}
-                            <tr>
-                                <td>
-                                    <a href="{% url 'playlists.edit_by_id' playlist_id=playlist.id %}" class="text-spotify text-decoration-none">
-                                        {{ playlist.name }}
-                                    </a>
-                                </td>
-                                <td>{{ playlist.track_count }}</td>
-                                <td class="text-white-50">{{ playlist.owner }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                <!-- Largest Playlists Tab -->
+                <div class="tab-pane fade" id="playlists" role="tabpanel" aria-labelledby="playlists-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="text-white fw-bold mb-0">Largest Playlists</h5>
+                        <a href="{% url 'playlists.export_csv' section='playlists' %}" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-download"></i> Export CSV
+                        </a>
+                    </div>
+                    {% if largest_playlists %}
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Playlist Name</th>
+                                        <th>Tracks</th>
+                                        <th>Owner</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for playlist in largest_playlists %}
+                                    <tr>
+                                        <td>
+                                            <a href="{% url 'playlists.edit_by_id' playlist_id=playlist.id %}" class="text-spotify text-decoration-none">
+                                                {{ playlist.name }}
+                                            </a>
+                                        </td>
+                                        <td>{{ playlist.track_count }}</td>
+                                        <td class="text-white-50">{{ playlist.owner }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-white-50">No playlist data available</p>
+                    {% endif %}
                 </div>
-            {% else %}
-                <p class="text-white-50">No playlist data available</p>
-            {% endif %}
-        </div>
-    </div>
 
-    <!-- Release Year Distribution -->
-    <div class="card bg-dark border-secondary mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Decision History</h5>
-            <a href="{% url 'playlists.export_csv' section='decisions' %}" class="btn btn-sm btn-outline-success">
-                <i class="bi bi-download"></i> Export CSV
-            </a>
-        </div>
-        <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <div class="card bg-dark border-success">
-                        <div class="card-body text-center">
-                            <h6 class="text-white-50">Kept Songs</h6>
-                            <h3 class="text-white">{{ decision_stats.kept_count }}</h3>
-                            <small class="text-success">{{ decision_stats.kept_percentage }}%</small>
+                <!-- Decision History Tab -->
+                <div class="tab-pane fade" id="decisions" role="tabpanel" aria-labelledby="decisions-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="text-white fw-bold mb-0">Decision History</h5>
+                        <a href="{% url 'playlists.export_csv' section='decisions' %}" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-download"></i> Export CSV
+                        </a>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="card bg-dark border-success">
+                                <div class="card-body text-center">
+                                    <h6 class="text-white-50">Kept Songs</h6>
+                                    <h3 class="text-white">{{ decision_stats.kept_count }}</h3>
+                                    <small class="text-success">{{ decision_stats.kept_percentage }}%</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-dark border-danger">
+                                <div class="card-body text-center">
+                                    <h6 class="text-white-50">Removed Songs</h6>
+                                    <h3 class="text-white">{{ decision_stats.removed_count }}</h3>
+                                    <small class="text-danger">{{ decision_stats.removed_percentage }}%</small>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card bg-dark border-danger">
-                        <div class="card-body text-center">
-                            <h6 class="text-white-50">Removed Songs</h6>
-                            <h3 class="text-white">{{ decision_stats.removed_count }}</h3>
-                            <small class="text-danger">{{ decision_stats.removed_percentage }}%</small>
+                    {% if recent_decisions %}
+                        <h6 class="text-white-50 mb-3">Recent Decisions</h6>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Track</th>
+                                        <th>Artist</th>
+                                        <th>Decision</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for decision in recent_decisions %}
+                                    <tr>
+                                        <td>{{ decision.name }}</td>
+                                        <td class="text-white-50">{{ decision.artist }}</td>
+                                        <td>
+                                            {% if decision.kept %}
+                                                <span class="badge bg-success">Kept</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">Removed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-white-50">{{ decision.date }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
+                    {% else %}
+                        <p class="text-white-50 mt-3">No decisions recorded yet. Start editing your playlists!</p>
+                    {% endif %}
                 </div>
             </div>
-            {% if recent_decisions %}
-                <h6 class="text-white-50 mb-3">Recent Decisions</h6>
-                <div class="table-responsive">
-                    <table class="table table-dark table-hover">
-                        <thead>
-                            <tr>
-                                <th>Track</th>
-                                <th>Artist</th>
-                                <th>Decision</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for decision in recent_decisions %}
-                            <tr>
-                                <td>{{ decision.name }}</td>
-                                <td class="text-white-50">{{ decision.artist }}</td>
-                                <td>
-                                    {% if decision.kept %}
-                                        <span class="badge bg-success">Kept</span>
-                                    {% else %}
-                                        <span class="badge bg-danger">Removed</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-white-50">{{ decision.date }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p class="text-white-50 mt-3">No decisions recorded yet. Start editing your playlists!</p>
-            {% endif %}
         </div>
     </div>
 </div>
