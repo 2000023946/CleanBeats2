@@ -288,6 +288,14 @@ def get_user_playlists(user):
     headers = {"Authorization": f"Bearer {st.access_token}"}
     url = f"{API_BASE}/me/playlists"
     r = requests.get(url, headers=headers)
+    
+    if r.status_code == 429:
+        retry_after = int(r.headers.get('Retry-After', 'unknown')) / 60
+        raise requests.exceptions.HTTPError(
+            f"Rate limited. Please wait {retry_after:.2f} minutes before trying again.",
+            response=r
+        )
+    
     r.raise_for_status()
     return r.json()
 
@@ -315,6 +323,14 @@ def get_playlist_tracks(user, playlist_id):
 
     while url:
         r = requests.get(url, headers=headers)
+        
+        if r.status_code == 429:
+            retry_after = int(r.headers.get('Retry-After', 'unknown')) / 60
+            raise requests.exceptions.HTTPError(
+                f"Rate limited. Please wait {retry_after:.2f} minutes before trying again.",
+                response=r
+            )
+        
         r.raise_for_status()
         data = r.json()
         tracks.extend(data["items"])  # each item contains a track
@@ -346,6 +362,14 @@ def get_playlist(user, playlist_id):
     headers = {"Authorization": f"Bearer {st.access_token}"}
     url = f"{API_BASE}/playlists/{playlist_id}"
     r = requests.get(url, headers=headers)
+    
+    if r.status_code == 429:
+        retry_after = int(r.headers.get('Retry-After', 'unknown')) / 60
+        raise requests.exceptions.HTTPError(
+            f"Rate limited. Please wait {retry_after:.2f} minutes before trying again.",
+            response=r
+        )
+    
     r.raise_for_status()
     return r.json()
 
