@@ -1750,9 +1750,6 @@ def analytics_dashboard(request):
         total_tracks = 0
         total_duration_ms = 0
         all_artists = []
-        all_genres = []
-        release_years = []
-        popular_tracks = []
         
         # Get all tracks from all playlists
         for playlist in playlists:
@@ -1773,26 +1770,6 @@ def analytics_dashboard(request):
                     artists = track.get('artists', [])
                     for artist in artists:
                         all_artists.append(artist.get('name', 'Unknown'))
-                    
-                    # Release year
-                    album = track.get('album', {})
-                    release_date = album.get('release_date', '')
-                    if release_date:
-                        try:
-                            year = int(release_date.split('-')[0])
-                            release_years.append(year)
-                        except (ValueError, IndexError):
-                            pass
-                    
-                    # Popular tracks
-                    popularity = track.get('popularity', 0)
-                    if popularity > 0:
-                        artist_names = ', '.join([a.get('name', 'Unknown') for a in artists])
-                        popular_tracks.append({
-                            'name': track.get('name', 'Unknown'),
-                            'artist': artist_names,
-                            'popularity': popularity
-                        })
             except Exception as e:
                 continue
         
@@ -1800,19 +1777,17 @@ def analytics_dashboard(request):
         total_hours = total_duration_ms // (1000 * 60 * 60)
         total_minutes = (total_duration_ms % (1000 * 60 * 60)) // (1000 * 60)
         
-        # Genre distribution (fetch from artist data if available)
-        # For now, we'll use top artists as a proxy
+        # Top Artists distribution
         artist_counts = Counter(all_artists)
         top_artists = artist_counts.most_common(20)
         
-        # Simulate genre data (in production, you'd fetch actual genre from artist API)
         genre_data = []
         total_artist_count = sum(artist_counts.values())
         for artist, count in top_artists[:10]:
             if total_artist_count > 0:
                 percentage = round((count / total_artist_count) * 100, 1)
                 genre_data.append({
-                    'name': artist,  # Using artist as genre proxy
+                    'name': artist,
                     'count': count,
                     'percentage': percentage
                 })
@@ -1825,26 +1800,6 @@ def analytics_dashboard(request):
             key=lambda x: x['track_count'],
             reverse=True
         )[:10]
-        
-        # Most popular tracks
-        popular_tracks = sorted(popular_tracks, key=lambda x: x['popularity'], reverse=True)[:15]
-        
-        # Release year distribution (by decade)
-        year_counter = Counter()
-        for year in release_years:
-            decade = (year // 10) * 10
-            year_counter[decade] += 1
-        
-        total_years = sum(year_counter.values())
-        year_data = []
-        for decade in sorted(year_counter.keys(), reverse=True):
-            count = year_counter[decade]
-            percentage = round((count / total_years) * 100, 1) if total_years > 0 else 0
-            year_data.append({
-                'label': f"{decade}s",
-                'count': count,
-                'percentage': percentage
-            })
         
         # Decision history from KeptSong model
         decisions = KeptSong.objects.filter(user=request.user).order_by('-created_at')
@@ -1878,8 +1833,6 @@ def analytics_dashboard(request):
             },
             'genre_data': genre_data,
             'largest_playlists': largest_playlists,
-            'popular_tracks': popular_tracks,
-            'year_data': year_data,
             'decision_stats': {
                 'kept_count': kept_count,
                 'removed_count': removed_count,

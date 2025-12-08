@@ -45,10 +45,10 @@
         </div>
     </div>
 
-    <!-- Genre Distribution -->
+    <!-- Top Artists Distribution -->
     <div class="card bg-dark border-secondary mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Genre Distribution</h5>
+            <h5 class="mb-0">Top Artists Distribution</h5>
             <a href="{% url 'playlists.export_csv' section='genres' %}" class="btn btn-sm btn-outline-success">
                 <i class="bi bi-download"></i> Export CSV
             </a>
@@ -59,7 +59,7 @@
                     <table class="table table-dark table-hover">
                         <thead>
                             <tr>
-                                <th>Genre</th>
+                                <th>Artist</th>
                                 <th>Count</th>
                                 <th>Percentage</th>
                             </tr>
@@ -131,99 +131,7 @@
         </div>
     </div>
 
-    <!-- Most Popular Tracks -->
-    <div class="card bg-dark border-secondary mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Most Popular Tracks</h5>
-            <a href="{% url 'playlists.export_csv' section='popular' %}" class="btn btn-sm btn-outline-success">
-                <i class="bi bi-download"></i> Export CSV
-            </a>
-        </div>
-        <div class="card-body">
-            {% if popular_tracks %}
-                <div class="table-responsive">
-                    <table class="table table-dark table-hover">
-                        <thead>
-                            <tr>
-                                <th>Track</th>
-                                <th>Artist</th>
-                                <th>Spotify Popularity</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for track in popular_tracks %}
-                            <tr>
-                                <td>{{ track.name }}</td>
-                                <td class="text-white-50">{{ track.artist }}</td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <div class="progress flex-grow-1 me-2" style="height: 20px; max-width: 150px;">
-                                            <div class="progress-bar bg-success" role="progressbar" 
-                                                 style="width: {{ track.popularity }}%;" 
-                                                 aria-valuenow="{{ track.popularity }}" aria-valuemin="0" aria-valuemax="100">
-                                            </div>
-                                        </div>
-                                        <span class="text-white-50">{{ track.popularity }}</span>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p class="text-white-50">No track data available</p>
-            {% endif %}
-        </div>
-    </div>
-
     <!-- Release Year Distribution -->
-    <div class="card bg-dark border-secondary mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Release Year Distribution</h5>
-            <a href="{% url 'playlists.export_csv' section='years' %}" class="btn btn-sm btn-outline-success">
-                <i class="bi bi-download"></i> Export CSV
-            </a>
-        </div>
-        <div class="card-body">
-            {% if year_data %}
-                <div class="table-responsive">
-                    <table class="table table-dark table-hover">
-                        <thead>
-                            <tr>
-                                <th>Decade</th>
-                                <th>Count</th>
-                                <th>Percentage</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for decade in year_data %}
-                            <tr>
-                                <td>{{ decade.label }}</td>
-                                <td>{{ decade.count }}</td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <div class="progress flex-grow-1 me-2" style="height: 20px;">
-                                            <div class="progress-bar bg-info" role="progressbar" 
-                                                 style="width: {{ decade.percentage }}%;" 
-                                                 aria-valuenow="{{ decade.percentage }}" aria-valuemin="0" aria-valuemax="100">
-                                            </div>
-                                        </div>
-                                        <span class="text-white-50">{{ decade.percentage }}%</span>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p class="text-white-50">No release year data available</p>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Decision History -->
     <div class="card bg-dark border-secondary mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Decision History</h5>
