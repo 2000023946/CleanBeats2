@@ -89,7 +89,7 @@
                             <i class="bi bi-download"></i> Export CSV
                         </a>
                     </div>
-                    {% if genre_data %}
+                    {% if top_artists_data %}
                         <div class="table-responsive">
                             <table class="table table-dark table-hover">
                                 <thead>
@@ -100,19 +100,19 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for genre in genre_data %}
+                                    {% for artist in top_artists_data %}
                                     <tr>
-                                        <td>{{ genre.name }}</td>
-                                        <td>{{ genre.count }}</td>
+                                        <td>{{ artist.name }}</td>
+                                        <td>{{ artist.count }}</td>
                                         <td>
                                             <div class="d-flex align-items-center">
                                                 <div class="progress flex-grow-1 me-2" style="height: 20px;">
                                                     <div class="progress-bar bg-spotify" role="progressbar" 
-                                                         style="width: {{ genre.percentage }}%;" 
-                                                         aria-valuenow="{{ genre.percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                                         {% if artist.percentage %}style="width: {{ artist.percentage }}%"{% endif %}
+                                                         aria-valuenow="{{ artist.percentage }}" aria-valuemin="0" aria-valuemax="100">
                                                     </div>
                                                 </div>
-                                                <span class="text-white-50">{{ genre.percentage }}%</span>
+                                                <span class="text-white-50">{{ artist.percentage }}%</span>
                                             </div>
                                         </td>
                                     </tr>

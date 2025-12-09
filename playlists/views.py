@@ -1,8 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from accounts.spotify import get_user_playlists, get_playlist_tracks, get_track_info, get_playlist, remove_tracks_from_playlist
-import requests
-import requests
+from accounts.spotify import get_user_playlists, get_playlist_tracks, get_playlist, remove_tracks_from_playlist, get_spotify_user_profile
+import requests # type: ignore
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse, HttpResponse
 import json
@@ -266,8 +265,8 @@ def apply_playlist_changes(request, playlist_id):
         # Remove tracks from Spotify playlist
         remove_tracks_from_playlist(request.user, playlist_id, track_uris)
         
-        # Delete removed songs from database
-        removed_songs.delete()
+        # Keep songs in database for history (don't delete)
+        # The kept=False flag already marks them as removed
         
         # Mark this playlist as modified so dashboard refreshes its count
         request.session['modified_playlist_id'] = playlist_id
@@ -1761,25 +1760,31 @@ def analytics_dashboard(request):
             cached_data = request.session.get(cache_key)
             cached_time = request.session.get(cache_time_key)
             
-            # Use cache if it exists and is less than 1 hour old (3600 seconds)
+            # Use cache if it exists and is less than 24 hours old (86400 seconds)
             if cached_data and cached_time:
                 cache_age = datetime.now().timestamp() - cached_time
-                if cache_age < 3600:  # 1 hour cache
-                    # Add cache info to context
-                    cached_data['cache_age_minutes'] = int(cache_age / 60)
-                    return render(request, 'playlists/analytics.html', cached_data)
+                if cache_age < 86400:  # 24 hour cache
+                    # Create a copy to avoid modifying session data
+                    context = cached_data.copy()
+                    context['cache_age_minutes'] = int(cache_age / 60)
+                    return render(request, 'playlists/analytics.html', context)
         
         # Get all playlists
         data = get_user_playlists(request.user)
         playlists = data.get("items", [])
+        
+        # Filter to only user's own playlists for faster analytics
+        user_profile = get_spotify_user_profile(request.user)
+        user_spotify_id = user_profile.get('id')
+        owned_playlists = [p for p in playlists if p['owner']['id'] == user_spotify_id]
         
         # Initialize counters
         total_tracks = 0
         total_duration_ms = 0
         all_artists = []
         
-        # Get all tracks from all playlists
-        for playlist in playlists:
+        # Get all tracks from owned playlists only
+        for playlist in owned_playlists:
             try:
                 tracks = get_playlist_tracks(request.user, playlist['id'])
                 for item in tracks:
@@ -1808,12 +1813,12 @@ def analytics_dashboard(request):
         artist_counts = Counter(all_artists)
         top_artists = artist_counts.most_common(20)
         
-        genre_data = []
+        top_artists_data = []
         total_artist_count = sum(artist_counts.values())
         for artist, count in top_artists[:10]:
             if total_artist_count > 0:
                 percentage = round((count / total_artist_count) * 100, 1)
-                genre_data.append({
+                top_artists_data.append({
                     'name': artist,
                     'count': count,
                     'percentage': percentage
@@ -1838,7 +1843,7 @@ def analytics_dashboard(request):
         removed_percentage = round((removed_count / total_decisions) * 100, 1) if total_decisions > 0 else 0
         
         recent_decisions = []
-        for decision in decisions[:20]:
+        for decision in decisions[:50]:
             artist_list = decision.artists if isinstance(decision.artists, list) else []
             artist_str = ', '.join([a if isinstance(a, str) else a.get('name', 'Unknown') 
                                    for a in artist_list]) if artist_list else 'Unknown'
@@ -1858,7 +1863,7 @@ def analytics_dashboard(request):
                 'total_minutes': total_minutes,
                 'unique_artists': len(set(all_artists))
             },
-            'genre_data': genre_data,
+            'top_artists_data': top_artists_data,
             'largest_playlists': largest_playlists,
             'decision_stats': {
                 'kept_count': kept_count,
@@ -1869,7 +1874,7 @@ def analytics_dashboard(request):
             'recent_decisions': recent_decisions
         }
         
-        # Cache the analytics data for 1 hour
+        # Cache the analytics data for 24 hours
         request.session[cache_key] = context
         request.session[cache_time_key] = datetime.now().timestamp()
         
