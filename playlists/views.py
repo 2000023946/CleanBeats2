@@ -1,6 +1,9 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from accounts.spotify import get_user_playlists, get_playlist_tracks, get_track_info, get_playlist, remove_tracks_from_playlist
+from accounts.spotify import (
+    get_user_playlists, get_playlist_tracks, get_track_info, get_playlist, 
+    remove_tracks_from_playlist, get_all_playlist_tracks_cached
+)
 import requests
 import requests
 from django.views.decorators.csrf import csrf_exempt
@@ -1769,21 +1772,25 @@ def analytics_dashboard(request):
                     cached_data['cache_age_minutes'] = int(cache_age / 60)
                     return render(request, 'playlists/analytics.html', cached_data)
         
-        # Get all playlists
-        data = get_user_playlists(request.user)
-        playlists = data.get("items", [])
+        # Get all playlists with their tracks using CACHED function (critical for performance)
+        # This reduces API calls from 51+ to 1 (after first load)
+        all_data = get_all_playlist_tracks_cached(request.user)
         
         # Initialize counters
         total_tracks = 0
         total_duration_ms = 0
         all_artists = []
+        playlists = []
         
-        # Get all tracks from all playlists
-        for playlist in playlists:
+        # Process cached playlists and tracks
+        for item in all_data:
             try:
-                tracks = get_playlist_tracks(request.user, playlist['id'])
-                for item in tracks:
-                    track = item.get('track')
+                playlist = item['playlist']
+                tracks = item['tracks']
+                playlists.append(playlist)
+                
+                for track_item in tracks:
+                    track = track_item.get('track')
                     if not track:
                         continue
                     
@@ -1893,17 +1900,19 @@ def export_analytics_csv(request, section):
     writer = csv.writer(response)
     
     try:
+        # CRITICAL: Fetch all playlists and tracks ONCE using cached function
+        # This reduces API calls from 204+ down to 1 (after cache miss) or 0 (after cache hit)
+        all_data = get_all_playlist_tracks_cached(request.user)
+        
         if section == 'genres':
             # Export genre/artist distribution
-            data = get_user_playlists(request.user)
-            playlists = data.get("items", [])
             all_artists = []
             
-            for playlist in playlists:
+            for item in all_data:
                 try:
-                    tracks = get_playlist_tracks(request.user, playlist['id'])
-                    for item in tracks:
-                        track = item.get('track')
+                    tracks = item['tracks']
+                    for track_item in tracks:
+                        track = track_item.get('track')
                         if not track:
                             continue
                         artists = track.get('artists', [])
@@ -1919,10 +1928,8 @@ def export_analytics_csv(request, section):
         
         elif section == 'playlists':
             # Export playlist data
-            data = get_user_playlists(request.user)
-            playlists = data.get("items", [])
-            
             writer.writerow(['Playlist Name', 'Track Count', 'Owner'])
+            playlists = [item['playlist'] for item in all_data]
             for p in sorted(playlists, key=lambda x: x['tracks']['total'], reverse=True):
                 writer.writerow([
                     p['name'],
@@ -1932,15 +1939,13 @@ def export_analytics_csv(request, section):
         
         elif section == 'popular':
             # Export popular tracks
-            data = get_user_playlists(request.user)
-            playlists = data.get("items", [])
             popular_tracks = []
             
-            for playlist in playlists:
+            for item in all_data:
                 try:
-                    tracks = get_playlist_tracks(request.user, playlist['id'])
-                    for item in tracks:
-                        track = item.get('track')
+                    tracks = item['tracks']
+                    for track_item in tracks:
+                        track = track_item.get('track')
                         if not track:
                             continue
                         artists = track.get('artists', [])
@@ -1959,15 +1964,13 @@ def export_analytics_csv(request, section):
         
         elif section == 'years':
             # Export release year distribution
-            data = get_user_playlists(request.user)
-            playlists = data.get("items", [])
             release_years = []
             
-            for playlist in playlists:
+            for item in all_data:
                 try:
-                    tracks = get_playlist_tracks(request.user, playlist['id'])
-                    for item in tracks:
-                        track = item.get('track')
+                    tracks = item['tracks']
+                    for track_item in tracks:
+                        track = track_item.get('track')
                         if not track:
                             continue
                         album = track.get('album', {})

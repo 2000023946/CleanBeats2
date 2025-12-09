@@ -2,6 +2,7 @@ from django.conf import settings
 from datetime import timedelta
 from django.utils import timezone
 import requests
+import time
 from .models import SpotifyToken
 
 TOKEN_URL = "https://accounts.spotify.com/api/token"
@@ -397,6 +398,78 @@ def get_playlist(user, playlist_id):
     return r.json()
 
 
+def _get_cached_chart_data(user, country_code):
+    """Retrieve cached chart data from the database if available and fresh."""
+    try:
+        from django.core.cache import cache
+        cache_key = f"spotify_charts_{user.id}_{country_code}"
+        return cache.get(cache_key)
+    except Exception:
+        return None
+
+
+def _cache_chart_data(user, country_code, data, timeout=86400):
+    """Cache chart data in the database for 24 hours."""
+    try:
+        from django.core.cache import cache
+        cache_key = f"spotify_charts_{user.id}_{country_code}"
+        cache.set(cache_key, data, timeout)
+    except Exception:
+        pass  # Silently fail if cache is unavailable
+
+
+def get_all_playlist_tracks_cached(user, timeout=86400):
+    """
+    Fetch all user playlists with their complete track lists (24-hour cache).
+    
+    This is a CRITICAL function for reducing API calls. Instead of calling
+    get_user_playlists() and then get_playlist_tracks() separately for each
+    playlist, this fetches everything once and caches it.
+    
+    Usage by analytics, exports, and other heavy operations.
+    
+    Returns: List of dicts with 'playlist' and 'tracks' keys
+    """
+    try:
+        from django.core.cache import cache
+        
+        cache_key = f"all_playlists_tracks_{user.id}"
+        cached = cache.get(cache_key)
+        if cached:
+            print(f"[Cache] HIT: Using cached playlists+tracks for user {user.id}")
+            return cached
+    except Exception:
+        pass
+    
+    print(f"[Cache] MISS: Fetching fresh playlists+tracks for user {user.id}")
+    
+    # Fetch all playlists
+    playlists_data = get_user_playlists(user)
+    playlists = playlists_data.get('items', [])
+    
+    result = []
+    for playlist in playlists:
+        try:
+            tracks = get_playlist_tracks(user, playlist['id'])
+            result.append({
+                'playlist': playlist,
+                'tracks': tracks
+            })
+        except Exception as e:
+            print(f"[Cache] Error fetching tracks for playlist {playlist['id']}: {e}")
+            continue
+    
+    # Cache for 24 hours
+    try:
+        from django.core.cache import cache
+        cache.set(cache_key, result, timeout)
+        print(f"[Cache] Stored: playlists+tracks cached for {timeout} seconds")
+    except Exception:
+        pass
+    
+    return result
+
+
 # Spotify's official "Top 50" playlist IDs by country code (some may be outdated)
 SPOTIFY_TOP50_PLAYLISTS = {
     'US': '37i9dQZEVXbLRQDuF5jeBp',
@@ -417,10 +490,17 @@ SPOTIFY_TOP50_PLAYLISTS = {
 def get_top_charts_for_country(user, country_code: str):
     """
     Fetch top artists from Spotify's Top 50 playlist for a given country.
-    Uses Spotify's search API to find chart playlists.
+    Uses Spotify's search API to find the official chart playlist.
     Returns a list of top artists with their track counts.
+    Includes caching and rate limit protection.
     """
     country_code = country_code.upper()
+    
+    # Check cache first
+    cached_data = _get_cached_chart_data(user, country_code)
+    if cached_data:
+        print(f"[Charts] Using cached data for {country_code}")
+        return cached_data
     
     st = SpotifyToken.objects.get(user=user)
     if st.is_expired():
@@ -446,48 +526,119 @@ def get_top_charts_for_country(user, country_code: str):
     playlist_id = SPOTIFY_TOP50_PLAYLISTS.get(country_code)
     found_playlist_id = None
     
+    print(f"[Charts] Looking for charts for {country_code} ({country_name})")
+    
     # If we have a known playlist ID, try it first
     if playlist_id:
         url = f"{API_BASE}/playlists/{playlist_id}/tracks?limit=50"
-        r = requests.get(url, headers=headers)
-        if r.status_code == 200:
-            data = r.json()
-            items = data.get('items', [])
-            if items:
-                return _parse_playlist_artists(data, country_code, True)
+        try:
+            r = requests.get(url, headers=headers)
+            print(f"[Charts] Hardcoded playlist {playlist_id}: status {r.status_code}")
+            
+            if r.status_code == 429:
+                retry_after = r.headers.get('Retry-After', 'unknown')
+                wait_time = _format_retry_after(retry_after)
+                raise requests.exceptions.HTTPError(
+                    f"Rate limited. Please wait {wait_time} before trying again.",
+                    response=r
+                )
+            
+            if r.status_code == 200:
+                data = r.json()
+                items = data.get('items', [])
+                print(f"[Charts] Got {len(items)} tracks from hardcoded playlist")
+                if items:
+                    result = _parse_playlist_artists(data, country_code, True)
+                    _cache_chart_data(user, country_code, result)
+                    return result
+        except requests.exceptions.HTTPError:
+            raise
+        except Exception as e:
+            print(f"[Charts] Error with hardcoded playlist: {e}")
+        
+        # Add minimal delay before next request to avoid rate limiting
+        time.sleep(0.1)
     
     # Fallback: Search for the playlist
     if country_name:
         search_query = f"Top 50 {country_name}"
         search_url = f"{API_BASE}/search?q={requests.utils.quote(search_query)}&type=playlist&limit=10"
-        r = requests.get(search_url, headers=headers)
-        
-        if r.status_code == 200:
-            search_data = r.json()
-            playlists = search_data.get('playlists', {}).get('items', [])
-            
-            for pl in playlists:
-                if pl is None:
-                    continue
-                pl_name = (pl.get('name', '') or '').lower()
-                track_count = pl.get('tracks', {}).get('total', 0) if pl.get('tracks') else 0
-                
-                if ('top' in pl_name or 'chart' in pl_name or 'hits' in pl_name) and track_count >= 20:
-                    found_playlist_id = pl.get('id')
-                    break
-            
-            if found_playlist_id:
-                url = f"{API_BASE}/playlists/{found_playlist_id}/tracks?limit=50"
-                r = requests.get(url, headers=headers)
-                if r.status_code == 200:
-                    data = r.json()
-                    return _parse_playlist_artists(data, country_code, True)
-    
-    # Try additional search terms
-    if country_name:
-        for search_term in [f"{country_name} top hits", f"{country_name} charts 2024", f"top songs {country_name}"]:
-            search_url = f"{API_BASE}/search?q={requests.utils.quote(search_term)}&type=playlist&limit=5"
+        try:
             r = requests.get(search_url, headers=headers)
+            print(f"[Charts] Search for '{search_query}': status {r.status_code}")
+            
+            if r.status_code == 429:
+                retry_after = r.headers.get('Retry-After', 'unknown')
+                wait_time = _format_retry_after(retry_after)
+                raise requests.exceptions.HTTPError(
+                    f"Rate limited. Please wait {wait_time} before trying again.",
+                    response=r
+                )
+            
+            if r.status_code == 200:
+                search_data = r.json()
+                playlists = search_data.get('playlists', {}).get('items', [])
+                print(f"[Charts] Found {len(playlists)} playlists in search")
+                
+                # Look for any playlist with "top" in the name that has tracks
+                for pl in playlists:
+                    if pl is None:
+                        continue
+                    owner = pl.get('owner', {}) or {}
+                    pl_name = (pl.get('name', '') or '').lower()
+                    owner_id = owner.get('id', '')
+                    track_count = pl.get('tracks', {}).get('total', 0) if pl.get('tracks') else 0
+                    print(f"[Charts]   - '{pl.get('name')}' by {owner_id} ({track_count} tracks)")
+                    
+                    # Accept any playlist with "top" in name and at least 20 tracks
+                    if ('top' in pl_name or 'chart' in pl_name or 'hits' in pl_name) and track_count >= 20:
+                        found_playlist_id = pl.get('id')
+                        print(f"[Charts] Using playlist: {found_playlist_id}")
+                        break
+                
+                if found_playlist_id:
+                    # Add minimal delay before fetching tracks
+                    time.sleep(0.1)
+                    url = f"{API_BASE}/playlists/{found_playlist_id}/tracks?limit=50"
+                    r = requests.get(url, headers=headers)
+                    print(f"[Charts] Fetching playlist tracks: status {r.status_code}")
+                    
+                    if r.status_code == 429:
+                        retry_after = r.headers.get('Retry-After', 'unknown')
+                        wait_time = _format_retry_after(retry_after)
+                        raise requests.exceptions.HTTPError(
+                            f"Rate limited. Please wait {wait_time} before trying again.",
+                            response=r
+                        )
+                    
+                    if r.status_code == 200:
+                        data = r.json()
+                        result = _parse_playlist_artists(data, country_code, True)
+                        _cache_chart_data(user, country_code, result)
+                        return result
+        except requests.exceptions.HTTPError:
+            raise
+        except Exception as e:
+            print(f"[Charts] Error with search: {e}")
+        
+        # Add minimal delay before next set of requests
+        time.sleep(0.1)
+    
+    # Try ONE fallback search term instead of multiple to reduce API calls
+    if country_name:
+        search_term = f"{country_name} top hits"
+        search_url = f"{API_BASE}/search?q={requests.utils.quote(search_term)}&type=playlist&limit=5"
+        try:
+            r = requests.get(search_url, headers=headers)
+            print(f"[Charts] Search for '{search_term}': status {r.status_code}")
+            
+            if r.status_code == 429:
+                retry_after = r.headers.get('Retry-After', 'unknown')
+                wait_time = _format_retry_after(retry_after)
+                raise requests.exceptions.HTTPError(
+                    f"Rate limited. Please wait {wait_time} before trying again.",
+                    response=r
+                )
             
             if r.status_code == 200:
                 search_data = r.json()
@@ -499,33 +650,74 @@ def get_top_charts_for_country(user, country_code: str):
                     track_count = pl.get('tracks', {}).get('total', 0) if pl.get('tracks') else 0
                     if track_count >= 20:
                         found_playlist_id = pl.get('id')
+                        print(f"[Charts] Using fallback playlist: {found_playlist_id} - {pl.get('name')}")
                         break
                 
                 if found_playlist_id:
+                    # Add minimal delay before fetching tracks
+                    time.sleep(0.1)
                     url = f"{API_BASE}/playlists/{found_playlist_id}/tracks?limit=50"
                     r = requests.get(url, headers=headers)
+                    
+                    if r.status_code == 429:
+                        retry_after = r.headers.get('Retry-After', 'unknown')
+                        wait_time = _format_retry_after(retry_after)
+                        raise requests.exceptions.HTTPError(
+                            f"Rate limited. Please wait {wait_time} before trying again.",
+                            response=r
+                        )
+                    
                     if r.status_code == 200:
                         data = r.json()
-                        return _parse_playlist_artists(data, country_code, True)
-                    break
+                        result = _parse_playlist_artists(data, country_code, True)
+                        _cache_chart_data(user, country_code, result)
+                        return result
+        except requests.exceptions.HTTPError:
+            raise
+        except Exception as e:
+            print(f"[Charts] Error with fallback search: {e}")
+        
+        # Add minimal delay before final fallback
+        time.sleep(0.1)
     
     # Final fallback: Global Top 50
+    print(f"[Charts] Trying Global Top 50 fallback")
     global_id = SPOTIFY_TOP50_PLAYLISTS.get('GLOBAL', '37i9dQZEVXbMDoHDwVN2tF')
     url = f"{API_BASE}/playlists/{global_id}/tracks?limit=50"
-    r = requests.get(url, headers=headers)
+    try:
+        r = requests.get(url, headers=headers)
+        print(f"[Charts] Global playlist: status {r.status_code}")
+        
+        if r.status_code == 429:
+            retry_after = r.headers.get('Retry-After', 'unknown')
+            wait_time = _format_retry_after(retry_after)
+            raise requests.exceptions.HTTPError(
+                f"Rate limited. Please wait {wait_time} before trying again.",
+                response=r
+            )
+        
+        if r.status_code == 200:
+            data = r.json()
+            items = data.get('items', [])
+            print(f"[Charts] Got {len(items)} tracks from Global playlist")
+            if items:
+                result = _parse_playlist_artists(data, country_code, False)
+                _cache_chart_data(user, country_code, result)
+                return result
+    except requests.exceptions.HTTPError:
+        raise
+    except Exception as e:
+        print(f"[Charts] Error with global fallback: {e}")
     
-    if r.status_code == 200:
-        data = r.json()
-        items = data.get('items', [])
-        if items:
-            return _parse_playlist_artists(data, country_code, False)
-    
-    return {
+    # If all else fails
+    print(f"[Charts] All fallbacks failed for {country_code}")
+    error_result = {
         'country_code': country_code,
         'has_chart': False,
         'artists': [],
-        'error': 'Could not fetch charts'
+        'error': f"Could not fetch charts"
     }
+    return error_result
 
 
 def _parse_playlist_artists(data, country_code, has_chart):

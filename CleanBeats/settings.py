@@ -134,6 +134,14 @@ STATICFILES_DIRS = [
     BASE_DIR / 'CleanBeats/static/',
 ]
 
+# Cache configuration for chart data
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'cleanbeats-cache',
+    }
+}
+
 from dotenv import load_dotenv
 
 load_dotenv()
