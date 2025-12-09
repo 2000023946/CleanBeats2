@@ -17,7 +17,7 @@
               data-preview="{{ song.preview_url }}"
               data-spotify="{{ song.spotify_url }}"
               data-artists="{{ song.artists|join:", " }}"
-                          {% if not forloop.last %}style="z-index: {{ forloop.revcounter }};"{% endif %}> 
+                          {% if forloop.counter > 3 %}style="display: none; z-index: {{ forloop.revcounter }};"{% else %}style="z-index: {{ forloop.revcounter }};"{% endif %}> 
                 
                 <!-- Song image -->
              <img src="{{ song.image_url|default:'/static/img/placeholder.png' }}" 
@@ -107,6 +107,12 @@ document.addEventListener('DOMContentLoaded', () => {
         card.style.opacity = 0;
         setTimeout(() => {
             card.remove();
+            // Show the next hidden card if it exists
+            const allCards = stack.querySelectorAll('.song-card');
+            const hiddenCards = Array.from(allCards).filter(c => c.style.display === 'none');
+            if (hiddenCards.length > 0) {
+                hiddenCards[0].style.display = '';
+            }
             getCards();
         }, 300);
     }
@@ -230,7 +236,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 <style>
-.song-card { cursor: grab; }
+.song-card { 
+    cursor: grab;
+    background-color: #1a1a1a; /* Solid dark background */
+    border: 1px solid #333;
+}
 .quick-kept-btn { background-color: var(--spotify-green); color: #fff; border: none; }
 </style>
 {% endblock %}
