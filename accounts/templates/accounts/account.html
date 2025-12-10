@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-5">
   <div class="row justify-content-center">
     <div class="col-md-8">
-      <div class="card bg-dark text-white shadow">
-        <div class="card-header">
+      <div class="card bg-dark text-white shadow rounded-4">
+        <div class="card-header rounded-top-4 p-4">
           <h3 class="mb-0"><i class="fas fa-user-cog me-2"></i>Account Settings</h3>
         </div>
-        <div class="card-body">
+        <div class="card-body p-4">
           <!-- User Information Section -->
           <div class="mb-4">
             <h5 class="text-spotify-green"><i class="fas fa-user me-2"></i>User Information</h5>
@@ -21,7 +21,7 @@
             
             <!-- Username and Password Section -->
             <div class="p-3">
-              <h6 class="text-white mb-3"><i class="fas fa-key me-2"></i>Login Credentials</h6>
+              <h6 class="text-white mb-3">Login Credentials</h6>
               
               <!-- Username -->
               <div class="row mb-3">
@@ -48,7 +48,7 @@
           </div>
 
           <!-- Spotify Connection Section -->
-          <div class="mb-4">
+          <div class="mb-0">
             <h5 class="text-spotify-green"><i class="fab fa-spotify me-2"></i>Spotify Connection</h5>
             <hr class="border-secondary">
             
@@ -59,7 +59,7 @@
                   <strong>Connected to Spotify</strong>
                   {% if template_data.spotify_profile %}
                     <br>
-                    <small class="text-muted">
+                    <small class="text-black">
                       Logged in as: <strong>{{ template_data.spotify_profile.display_name|default:template_data.spotify_profile.id }}</strong>
                       {% if template_data.spotify_profile.email %}
                         ({{ template_data.spotify_profile.email }})
@@ -89,22 +89,6 @@
                 </a>
               </div>
             {% endif %}
-          </div>
-
-          <!-- Additional Options -->
-          <div class="mb-4">
-            <h5 class="text-spotify-green"><i class="fas fa-cogs me-2"></i>Account Info</h5>
-            <hr class="border-secondary">
-            <div class="d-grid gap-2 d-md-block">
-              <a href="{% url 'home.index' %}" class="btn btn-outline-light">
-                <i class="fas fa-home me-2"></i>Back to Home
-              </a>
-              {% if template_data.spotify_connected %}
-                <a href="{% url 'playlists.dashboard' %}" class="btn btn-outline-success">
-                  <i class="fas fa-list me-2"></i>My Playlists
-                </a>
-              {% endif %}
-            </div>
           </div>
         </div>
       </div>

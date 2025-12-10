@@ -7,7 +7,15 @@
         <h2 class="mb-0">Music Analytics</h2>
         {% if cache_age_minutes is not None %}
             <div>
-                <span class="badge bg-info me-2">Cached {{ cache_age_minutes }} min ago</span>
+                <span class="badge bg-info me-2">
+                    Cached 
+                    {% if cache_age_hours > 0 %}
+                        {{ cache_age_hours }}h {{ cache_remaining_minutes }}min
+                    {% else %}
+                        {{ cache_age_minutes }} min
+                    {% endif %}
+                    ago
+                </span>
                 <a href="?refresh=1" class="btn btn-sm btn-outline-light">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </a>

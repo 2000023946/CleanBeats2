@@ -1766,7 +1766,12 @@ def analytics_dashboard(request):
                 if cache_age < 86400:  # 24 hour cache
                     # Create a copy to avoid modifying session data
                     context = cached_data.copy()
-                    context['cache_age_minutes'] = int(cache_age / 60)
+                    cache_age_minutes = int(cache_age / 60)
+                    cache_age_hours = cache_age_minutes // 60
+                    remaining_minutes = cache_age_minutes % 60
+                    context['cache_age_minutes'] = cache_age_minutes
+                    context['cache_age_hours'] = cache_age_hours
+                    context['cache_remaining_minutes'] = remaining_minutes
                     return render(request, 'playlists/analytics.html', context)
         
         # Get all playlists

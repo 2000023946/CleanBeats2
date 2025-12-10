@@ -1,7 +1,7 @@
 from django.conf import settings
 from datetime import timedelta
 from django.utils import timezone
-import requests
+import requests #type: ignore
 from .models import SpotifyToken
 
 TOKEN_URL = "https://accounts.spotify.com/api/token"
